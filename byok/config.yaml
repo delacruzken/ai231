@@ -1,0 +1,74 @@
+# =====================================================================
+#  baby-onit  —  draft config.yaml  (for hdc / delacruzharv)
+#  Mirrors Rowel's `baby-onit setup --show` layout (see byok.pdf).
+#
+#  HOW TO USE:
+#    1. Replace every <PASTE_...> placeholder with your real key.
+#    2. When baby-onit is released, this becomes  ~/.baby-onit/config.yaml
+#       (or feed the same values into `baby-onit setup`).
+#    3. NEVER commit the real file. Add it to .gitignore.
+#
+#  NOTE ON SECRETS: baby-onit stores keys as ENV-VAR REFERENCES, not raw
+#  values. Each secret line says "read this from environment variable X".
+#  So the real keys live in your shell profile, not in this YAML.
+# =====================================================================
+
+provider: auto
+host: https://openrouter.ai/api/v1
+model: stealth/space-bunny-alpha          # swap for whichever model you want
+think: true
+max_tokens: 32768
+max_chat_iterations: -1
+max_context_tokens: 262144
+temperature: 0.6
+top_p: 0.95
+data_path: /Users/hdc/sandbox
+
+# ---------------------------------------------------------------------
+#  ENDPOINTS  (provider gateways the agent can route through)
+#  OpenRouter is primary; Ollama (local) is the offline/standalone one.
+# ---------------------------------------------------------------------
+endpoints:
+  - host: https://openrouter.ai/api/v1
+    key_env: OPENROUTER_API_KEY
+    models:
+      - stealth/space-bunny-alpha
+  - host: http://localhost:11434/v1
+    key_env: OLLAMA_API_KEY
+    models:
+      - qwen3.8-local:latest
+  # --- GLM gateways (add when you create these keys) -----------------
+  # Z.AI direct: native GLM-5.3, cheapest, 1M ctx.  Key from z.ai
+  - host: https://api.z.ai/api/coding/paas/v4
+    key_env: ZAI_API_KEY
+    models: [glm-5.3]
+  # ai&: one key -> GLM/Kimi/DeepSeek/Qwen (cloud, pay-per-token)
+  # - host: https://api.aiand.com/v1
+  #   key_env: AIAND_API_KEY
+  #   models: [zai-org/glm-5.3]
+  # NVIDIA NIM: FREE GLM-5.3-Flash fallback.  Key from build.nvidia.com
+  # - host: https://integrate.api.nvidia.com/v1
+  #   key_env: NVIDIA_API_KEY
+  #   models: [z-ai/glm-5.3-flash]
+  # Optional extra gateways (uncomment when you add those keys):
+  # - host: https://api.anthropic.com/v1
+  #   key_env: ANTHROPIC_API_KEY
+  #   models: [claude-sonnet-5]
+  # - host: https://api.openai.com/v1
+  #   key_env: OPENAI_API_KEY
+  #   models: [gpt-6-luna]
+
+# ---------------------------------------------------------------------
+#  SECRETS  (each = an env-var reference, matching Rowel's sample)
+#  "set (****)" means: resolved from that environment variable.
+# ---------------------------------------------------------------------
+secrets:
+  github_token:      { env: GITHUB_TOKEN,      value: "<PASTE_GITHUB_PAT>" }
+  huggingface_token: { env: HF_TOKEN,          value: "<PASTE_HF_TOKEN>" }
+  tavily_api_key:    { env: TAVILY_API_KEY,    value: "<PASTE_TAVILY_KEY>" }
+  openrouter_key:    { env: OPENROUTER_API_KEY, value: "<PASTE_OPENROUTER_KEY>" }
+  ollama_api_key:    { env: OLLAMA_API_KEY,    value: "ollama-local" }   # local; placeholder is fine
+  # --- GLM (add when created) ----------------------------------------
+  zai_api_key:       { env: ZAI_API_KEY,       value: "<PASTE_ZAI_KEY>" }   # native GLM-5.3
+  # aiand_api_key:   { env: AIAND_API_KEY,     value: "<PASTE_AIAND_KEY>" } # GLM+Kimi+DeepSeek
+  # nvidia_api_key:  { env: NVIDIA_API_KEY,    value: "<PASTE_NVIDIA_KEY>" }# free GLM-flash

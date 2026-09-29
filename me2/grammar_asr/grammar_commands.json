@@ -1,0 +1,374 @@
+[
+  {
+    "transcript": "Alarm 6 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Wake me up at 6 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Set an alarm for 6 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Alarm 8 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Wake me up at 8 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Set an alarm for 8 AM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Alarm 9 PM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Wake me up at 9 PM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Set an alarm for 9 PM",
+    "intent": "ALARM"
+  },
+  {
+    "transcript": "Brightness 100 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Adjust brightness to 100 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Brightness level 100 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Brightness 20 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Adjust brightness to 20 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Brightness level 20 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Brightness 60 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Adjust brightness to 60 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Brightness level 60 percent",
+    "intent": "BRIGHTNESS"
+  },
+  {
+    "transcript": "Call",
+    "intent": "CALL"
+  },
+  {
+    "transcript": "Place a call",
+    "intent": "CALL"
+  },
+  {
+    "transcript": "Make a phone call",
+    "intent": "CALL"
+  },
+  {
+    "transcript": "Change color to blue",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Switch color to blue",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Set color to blue",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Change color to green",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Switch color to green",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Set color to green",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Change color to red",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Switch color to red",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Set color to red",
+    "intent": "COLOR"
+  },
+  {
+    "transcript": "Reminder drink water",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Remind me to drink water",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Create a reminder to drink water",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Reminder exercise",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Remind me to exercise",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Create a reminder to exercise",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Reminder study",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Remind me to study",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Create a reminder to study",
+    "intent": "CREATE_REMINDER"
+  },
+  {
+    "transcript": "Lights out",
+    "intent": "LIGHT_OFF"
+  },
+  {
+    "transcript": "Kill the lights",
+    "intent": "LIGHT_OFF"
+  },
+  {
+    "transcript": "Shut off the lights",
+    "intent": "LIGHT_OFF"
+  },
+  {
+    "transcript": "Lights on",
+    "intent": "LIGHT_ON"
+  },
+  {
+    "transcript": "Turn on the lights",
+    "intent": "LIGHT_ON"
+  },
+  {
+    "transcript": "Power on the lights",
+    "intent": "LIGHT_ON"
+  },
+  {
+    "transcript": "Reminders",
+    "intent": "LIST_REMINDERS"
+  },
+  {
+    "transcript": "Show my reminders",
+    "intent": "LIST_REMINDERS"
+  },
+  {
+    "transcript": "List my reminders",
+    "intent": "LIST_REMINDERS"
+  },
+  {
+    "transcript": "Message",
+    "intent": "MESSAGE"
+  },
+  {
+    "transcript": "Send a message",
+    "intent": "MESSAGE"
+  },
+  {
+    "transcript": "Send my message",
+    "intent": "MESSAGE"
+  },
+  {
+    "transcript": "Next song",
+    "intent": "NEXT"
+  },
+  {
+    "transcript": "Skip song",
+    "intent": "NEXT"
+  },
+  {
+    "transcript": "Play next song",
+    "intent": "NEXT"
+  },
+  {
+    "transcript": "Pause",
+    "intent": "PAUSE"
+  },
+  {
+    "transcript": "Pause audio",
+    "intent": "PAUSE"
+  },
+  {
+    "transcript": "Pause for now",
+    "intent": "PAUSE"
+  },
+  {
+    "transcript": "Play music",
+    "intent": "PLAY_MUSIC"
+  },
+  {
+    "transcript": "Start music",
+    "intent": "PLAY_MUSIC"
+  },
+  {
+    "transcript": "Play some music",
+    "intent": "PLAY_MUSIC"
+  },
+  {
+    "transcript": "Stop",
+    "intent": "STOP"
+  },
+  {
+    "transcript": "Stop playing",
+    "intent": "STOP"
+  },
+  {
+    "transcript": "End playback",
+    "intent": "STOP"
+  },
+  {
+    "transcript": "Temperature 18 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Change the temperature to 18 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Set the temperature to 18 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Temperature 22 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Change the temperature to 22 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Set the temperature to 22 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Temperature 26 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Change the temperature to 26 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Set the temperature to 26 degrees",
+    "intent": "TEMPERATURE"
+  },
+  {
+    "transcript": "Time",
+    "intent": "TIME"
+  },
+  {
+    "transcript": "What time is it?",
+    "intent": "TIME"
+  },
+  {
+    "transcript": "Tell me the time",
+    "intent": "TIME"
+  },
+  {
+    "transcript": "Timer 10 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Countdown for 10 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Start a timer for 10 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Countdown for 1 minute",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Start a timer for 1 minute",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Timer 1 minute",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Timer 30 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Countdown for 30 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Start a timer for 30 seconds",
+    "intent": "TIMER"
+  },
+  {
+    "transcript": "Volume down",
+    "intent": "VOLUME_DOWN"
+  },
+  {
+    "transcript": "Lower the volume",
+    "intent": "VOLUME_DOWN"
+  },
+  {
+    "transcript": "Turn the volume down",
+    "intent": "VOLUME_DOWN"
+  },
+  {
+    "transcript": "Volume up",
+    "intent": "VOLUME_UP"
+  },
+  {
+    "transcript": "Increase the volume",
+    "intent": "VOLUME_UP"
+  },
+  {
+    "transcript": "Turn the volume up",
+    "intent": "VOLUME_UP"
+  },
+  {
+    "transcript": "Weather",
+    "intent": "WEATHER"
+  },
+  {
+    "transcript": "What's the weather?",
+    "intent": "WEATHER"
+  },
+  {
+    "transcript": "Tell me the weather",
+    "intent": "WEATHER"
+  }
+]

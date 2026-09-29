@@ -4,5 +4,8 @@ __pycache__/
 .DS_Store
 data/
 MNIST/
+# ME2: heavy training artifacts stay out of git (code + docs + small dist/ ship)
+me2/grammar_asr/runs/
+me2/grammar_asr/__pycache__/
 .ipynb_checkpoints/
 *.egg-info/

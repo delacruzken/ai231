@@ -8,5 +8,6 @@ isolated (ME1 in `me1/`, ME2 in `me2/`, and so on).
 | # | Title | Folder | Status |
 |---|-------|--------|--------|
 | ME1 | EinOps / Einsum — 3-layer CNN for MNIST | [`me1/`](me1/) | ✅ Done — 99.11% test acc |
+| ME2 | Voice Command Model on Raspberry Pi 5 (grammar-ASR) | [`me2/`](me2/) | 🟢 Model complete & deployable — RPi5 live-mic demo pending |
 
 See each folder's `README.md` for details.
