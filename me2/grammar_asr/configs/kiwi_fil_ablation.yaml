@@ -1,0 +1,35 @@
+# Optional Filipino-supplement ablation (train-only). Document licensing caveats.
+tag: kiwi_fil_s1
+seed: 1
+device: cuda
+epochs: 80
+batch_size: 128
+num_workers: 4
+lr: 0.001
+weight_decay: 0.0001
+warmup_epochs: 5
+max_seconds: 5.0
+target_far: 0.10
+amp: true
+decode_prefer: intent_head
+
+model:
+  name: kiwi
+  gru_hidden: 96
+  gru_layers: 2
+  dropout: 0.15
+
+data:
+  root: /data/ai231
+  use_hf: false
+  include_negatives: true
+  include_fil: true
+  include_synth_extra: false
+  val_fraction: 0.1
+
+loss:
+  ctc_weight: 0.0
+  intent_weight: 1.0
+  slot_weight: 1.0
+  confusable_weight: 0.1
+  label_smoothing: 0.05

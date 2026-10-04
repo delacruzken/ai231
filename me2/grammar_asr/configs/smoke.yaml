@@ -1,0 +1,35 @@
+# Tiny end-to-end smoke config (CPU/GPU). Uses HF if local gold is absent.
+tag: smoke
+seed: 0
+device: auto
+smoke: true
+smoke_n: 32
+epochs: 1
+batch_size: 8
+num_workers: 0
+lr: 0.001
+weight_decay: 0.0001
+max_seconds: 3.0
+char_reward: 0.15
+target_far: 0.15
+amp: false
+
+model:
+  name: kiwi
+  gru_hidden: 32
+  gru_layers: 1
+  dropout: 0.1
+
+data:
+  root: null
+  use_hf: true
+  include_negatives: false
+  include_fil: false
+  val_fraction: 0.25
+
+loss:
+  ctc_weight: 0.0
+  intent_weight: 1.0
+  slot_weight: 1.0
+  confusable_weight: 0.0
+  label_smoothing: 0.05

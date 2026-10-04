@@ -1,0 +1,37 @@
+tag: ctc_gold_s0
+seed: 0
+device: cuda
+epochs: 40
+batch_size: 64
+num_workers: 4
+lr: 0.001
+weight_decay: 0.0001
+warmup_epochs: 0
+max_seconds: 5.0
+char_reward: 0.15
+target_far: 0.10
+amp: true
+decode_prefer: grammar
+
+model:
+  name: ctc_low
+  hidden: 192
+  num_blocks: 5
+  dropout: 0.1
+
+data:
+  root: /data/ai231
+  use_hf: false
+  require_local: false
+  include_negatives: true
+  include_fil: false
+  include_synth_extra: false
+  val_fraction: 0.1
+  revision: null
+
+loss:
+  ctc_weight: 1.0
+  intent_weight: 0.0
+  slot_weight: 0.0
+  confusable_weight: 0.0
+  label_smoothing: 0.0
