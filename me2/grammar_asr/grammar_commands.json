@@ -1,374 +1,653 @@
 [
   {
-    "transcript": "Alarm 6 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Wake me up at 6 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Set an alarm for 6 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Alarm 8 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Wake me up at 8 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Set an alarm for 8 AM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Alarm 9 PM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Wake me up at 9 PM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Set an alarm for 9 PM",
-    "intent": "ALARM"
-  },
-  {
-    "transcript": "Brightness 100 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Adjust brightness to 100 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Brightness level 100 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Brightness 20 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Adjust brightness to 20 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Brightness level 20 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Brightness 60 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Adjust brightness to 60 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Brightness level 60 percent",
-    "intent": "BRIGHTNESS"
-  },
-  {
-    "transcript": "Call",
-    "intent": "CALL"
-  },
-  {
-    "transcript": "Place a call",
-    "intent": "CALL"
-  },
-  {
-    "transcript": "Make a phone call",
-    "intent": "CALL"
-  },
-  {
-    "transcript": "Change color to blue",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Switch color to blue",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Set color to blue",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Change color to green",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Switch color to green",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Set color to green",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Change color to red",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Switch color to red",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Set color to red",
-    "intent": "COLOR"
-  },
-  {
-    "transcript": "Reminder drink water",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Remind me to drink water",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Create a reminder to drink water",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Reminder exercise",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Remind me to exercise",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Create a reminder to exercise",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Reminder study",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Remind me to study",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Create a reminder to study",
-    "intent": "CREATE_REMINDER"
-  },
-  {
-    "transcript": "Lights out",
-    "intent": "LIGHT_OFF"
-  },
-  {
-    "transcript": "Kill the lights",
-    "intent": "LIGHT_OFF"
-  },
-  {
-    "transcript": "Shut off the lights",
-    "intent": "LIGHT_OFF"
-  },
-  {
-    "transcript": "Lights on",
-    "intent": "LIGHT_ON"
-  },
-  {
-    "transcript": "Turn on the lights",
-    "intent": "LIGHT_ON"
-  },
-  {
-    "transcript": "Power on the lights",
-    "intent": "LIGHT_ON"
-  },
-  {
-    "transcript": "Reminders",
-    "intent": "LIST_REMINDERS"
-  },
-  {
-    "transcript": "Show my reminders",
-    "intent": "LIST_REMINDERS"
-  },
-  {
-    "transcript": "List my reminders",
-    "intent": "LIST_REMINDERS"
-  },
-  {
-    "transcript": "Message",
-    "intent": "MESSAGE"
-  },
-  {
-    "transcript": "Send a message",
-    "intent": "MESSAGE"
-  },
-  {
-    "transcript": "Send my message",
-    "intent": "MESSAGE"
-  },
-  {
-    "transcript": "Next song",
-    "intent": "NEXT"
-  },
-  {
-    "transcript": "Skip song",
-    "intent": "NEXT"
-  },
-  {
-    "transcript": "Play next song",
-    "intent": "NEXT"
-  },
-  {
-    "transcript": "Pause",
-    "intent": "PAUSE"
-  },
-  {
-    "transcript": "Pause audio",
-    "intent": "PAUSE"
-  },
-  {
-    "transcript": "Pause for now",
-    "intent": "PAUSE"
-  },
-  {
     "transcript": "Play music",
-    "intent": "PLAY_MUSIC"
+    "intent": "PLAY_MUSIC",
+    "slot": "",
+    "variation_id": 0,
+    "normalized": "play music"
   },
   {
     "transcript": "Start music",
-    "intent": "PLAY_MUSIC"
+    "intent": "PLAY_MUSIC",
+    "slot": "",
+    "variation_id": 1,
+    "normalized": "start music"
   },
   {
     "transcript": "Play some music",
-    "intent": "PLAY_MUSIC"
-  },
-  {
-    "transcript": "Stop",
-    "intent": "STOP"
-  },
-  {
-    "transcript": "Stop playing",
-    "intent": "STOP"
-  },
-  {
-    "transcript": "End playback",
-    "intent": "STOP"
-  },
-  {
-    "transcript": "Temperature 18 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Change the temperature to 18 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Set the temperature to 18 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Temperature 22 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Change the temperature to 22 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Set the temperature to 22 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Temperature 26 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Change the temperature to 26 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Set the temperature to 26 degrees",
-    "intent": "TEMPERATURE"
-  },
-  {
-    "transcript": "Time",
-    "intent": "TIME"
-  },
-  {
-    "transcript": "What time is it?",
-    "intent": "TIME"
-  },
-  {
-    "transcript": "Tell me the time",
-    "intent": "TIME"
-  },
-  {
-    "transcript": "Timer 10 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Countdown for 10 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Start a timer for 10 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Countdown for 1 minute",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Start a timer for 1 minute",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Timer 1 minute",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Timer 30 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Countdown for 30 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Start a timer for 30 seconds",
-    "intent": "TIMER"
-  },
-  {
-    "transcript": "Volume down",
-    "intent": "VOLUME_DOWN"
-  },
-  {
-    "transcript": "Lower the volume",
-    "intent": "VOLUME_DOWN"
-  },
-  {
-    "transcript": "Turn the volume down",
-    "intent": "VOLUME_DOWN"
-  },
-  {
-    "transcript": "Volume up",
-    "intent": "VOLUME_UP"
-  },
-  {
-    "transcript": "Increase the volume",
-    "intent": "VOLUME_UP"
-  },
-  {
-    "transcript": "Turn the volume up",
-    "intent": "VOLUME_UP"
+    "intent": "PLAY_MUSIC",
+    "slot": "",
+    "variation_id": 2,
+    "normalized": "play some music"
   },
   {
     "transcript": "Weather",
-    "intent": "WEATHER"
+    "intent": "WEATHER",
+    "slot": "",
+    "variation_id": 3,
+    "normalized": "weather"
   },
   {
     "transcript": "What's the weather?",
-    "intent": "WEATHER"
+    "intent": "WEATHER",
+    "slot": "",
+    "variation_id": 4,
+    "normalized": "whats the weather"
   },
   {
     "transcript": "Tell me the weather",
-    "intent": "WEATHER"
+    "intent": "WEATHER",
+    "slot": "",
+    "variation_id": 5,
+    "normalized": "tell me the weather"
+  },
+  {
+    "transcript": "Time",
+    "intent": "TIME",
+    "slot": "",
+    "variation_id": 6,
+    "normalized": "time"
+  },
+  {
+    "transcript": "What time is it?",
+    "intent": "TIME",
+    "slot": "",
+    "variation_id": 7,
+    "normalized": "what time is it"
+  },
+  {
+    "transcript": "Tell me the time",
+    "intent": "TIME",
+    "slot": "",
+    "variation_id": 8,
+    "normalized": "tell me the time"
+  },
+  {
+    "transcript": "Lights on",
+    "intent": "LIGHT_ON",
+    "slot": "",
+    "variation_id": 9,
+    "normalized": "lights on"
+  },
+  {
+    "transcript": "Power on the lights",
+    "intent": "LIGHT_ON",
+    "slot": "",
+    "variation_id": 10,
+    "normalized": "power on the lights"
+  },
+  {
+    "transcript": "Turn on the lights",
+    "intent": "LIGHT_ON",
+    "slot": "",
+    "variation_id": 11,
+    "normalized": "turn on the lights"
+  },
+  {
+    "transcript": "Lights out",
+    "intent": "LIGHT_OFF",
+    "slot": "",
+    "variation_id": 12,
+    "normalized": "lights out"
+  },
+  {
+    "transcript": "Kill the lights",
+    "intent": "LIGHT_OFF",
+    "slot": "",
+    "variation_id": 13,
+    "normalized": "kill the lights"
+  },
+  {
+    "transcript": "Shut off the lights",
+    "intent": "LIGHT_OFF",
+    "slot": "",
+    "variation_id": 14,
+    "normalized": "shut off the lights"
+  },
+  {
+    "transcript": "Pause",
+    "intent": "PAUSE",
+    "slot": "",
+    "variation_id": 15,
+    "normalized": "pause"
+  },
+  {
+    "transcript": "Pause audio",
+    "intent": "PAUSE",
+    "slot": "",
+    "variation_id": 16,
+    "normalized": "pause audio"
+  },
+  {
+    "transcript": "Pause song",
+    "intent": "PAUSE",
+    "slot": "",
+    "variation_id": 17,
+    "normalized": "pause song"
+  },
+  {
+    "transcript": "Stop",
+    "intent": "STOP",
+    "slot": "",
+    "variation_id": 18,
+    "normalized": "stop"
+  },
+  {
+    "transcript": "Stop playing",
+    "intent": "STOP",
+    "slot": "",
+    "variation_id": 19,
+    "normalized": "stop playing"
+  },
+  {
+    "transcript": "End playback",
+    "intent": "STOP",
+    "slot": "",
+    "variation_id": 20,
+    "normalized": "end playback"
+  },
+  {
+    "transcript": "Next song",
+    "intent": "NEXT",
+    "slot": "",
+    "variation_id": 21,
+    "normalized": "next song"
+  },
+  {
+    "transcript": "Skip song",
+    "intent": "NEXT",
+    "slot": "",
+    "variation_id": 22,
+    "normalized": "skip song"
+  },
+  {
+    "transcript": "Play next song",
+    "intent": "NEXT",
+    "slot": "",
+    "variation_id": 23,
+    "normalized": "play next song"
+  },
+  {
+    "transcript": "Volume up",
+    "intent": "VOLUME_UP",
+    "slot": "",
+    "variation_id": 24,
+    "normalized": "volume up"
+  },
+  {
+    "transcript": "Increase the volume",
+    "intent": "VOLUME_UP",
+    "slot": "",
+    "variation_id": 25,
+    "normalized": "increase the volume"
+  },
+  {
+    "transcript": "Turn the volume up",
+    "intent": "VOLUME_UP",
+    "slot": "",
+    "variation_id": 26,
+    "normalized": "turn the volume up"
+  },
+  {
+    "transcript": "Volume down",
+    "intent": "VOLUME_DOWN",
+    "slot": "",
+    "variation_id": 27,
+    "normalized": "volume down"
+  },
+  {
+    "transcript": "Lower the volume",
+    "intent": "VOLUME_DOWN",
+    "slot": "",
+    "variation_id": 28,
+    "normalized": "lower the volume"
+  },
+  {
+    "transcript": "Turn the volume down",
+    "intent": "VOLUME_DOWN",
+    "slot": "",
+    "variation_id": 29,
+    "normalized": "turn the volume down"
+  },
+  {
+    "transcript": "Call",
+    "intent": "CALL",
+    "slot": "",
+    "variation_id": 30,
+    "normalized": "call"
+  },
+  {
+    "transcript": "Make a call",
+    "intent": "CALL",
+    "slot": "",
+    "variation_id": 31,
+    "normalized": "make a call"
+  },
+  {
+    "transcript": "Make a phone call",
+    "intent": "CALL",
+    "slot": "",
+    "variation_id": 32,
+    "normalized": "make a phone call"
+  },
+  {
+    "transcript": "Message",
+    "intent": "MESSAGE",
+    "slot": "",
+    "variation_id": 33,
+    "normalized": "message"
+  },
+  {
+    "transcript": "Send a message",
+    "intent": "MESSAGE",
+    "slot": "",
+    "variation_id": 34,
+    "normalized": "send a message"
+  },
+  {
+    "transcript": "Send my message",
+    "intent": "MESSAGE",
+    "slot": "",
+    "variation_id": 35,
+    "normalized": "send my message"
+  },
+  {
+    "transcript": "Reminders",
+    "intent": "LIST_REMINDERS",
+    "slot": "",
+    "variation_id": 36,
+    "normalized": "reminders"
+  },
+  {
+    "transcript": "Show my reminders",
+    "intent": "LIST_REMINDERS",
+    "slot": "",
+    "variation_id": 37,
+    "normalized": "show my reminders"
+  },
+  {
+    "transcript": "List my reminders",
+    "intent": "LIST_REMINDERS",
+    "slot": "",
+    "variation_id": 38,
+    "normalized": "list my reminders"
+  },
+  {
+    "transcript": "Timer 10 seconds",
+    "intent": "TIMER",
+    "slot": "10 seconds",
+    "variation_id": 39,
+    "normalized": "timer  ten seconds"
+  },
+  {
+    "transcript": "Timer 30 seconds",
+    "intent": "TIMER",
+    "slot": "30 seconds",
+    "variation_id": 40,
+    "normalized": "timer  thirty seconds"
+  },
+  {
+    "transcript": "Timer 1 minute",
+    "intent": "TIMER",
+    "slot": "1 minute",
+    "variation_id": 41,
+    "normalized": "timer  one minute"
+  },
+  {
+    "transcript": "Countdown for 10 seconds",
+    "intent": "TIMER",
+    "slot": "10 seconds",
+    "variation_id": 42,
+    "normalized": "countdown for  ten seconds"
+  },
+  {
+    "transcript": "Countdown for 30 seconds",
+    "intent": "TIMER",
+    "slot": "30 seconds",
+    "variation_id": 43,
+    "normalized": "countdown for  thirty seconds"
+  },
+  {
+    "transcript": "Countdown for 1 minute",
+    "intent": "TIMER",
+    "slot": "1 minute",
+    "variation_id": 44,
+    "normalized": "countdown for  one minute"
+  },
+  {
+    "transcript": "Start a timer for 10 seconds",
+    "intent": "TIMER",
+    "slot": "10 seconds",
+    "variation_id": 45,
+    "normalized": "start a timer for  ten seconds"
+  },
+  {
+    "transcript": "Start a timer for 30 seconds",
+    "intent": "TIMER",
+    "slot": "30 seconds",
+    "variation_id": 46,
+    "normalized": "start a timer for  thirty seconds"
+  },
+  {
+    "transcript": "Start a timer for 1 minute",
+    "intent": "TIMER",
+    "slot": "1 minute",
+    "variation_id": 47,
+    "normalized": "start a timer for  one minute"
+  },
+  {
+    "transcript": "Alarm 6:00 AM",
+    "intent": "ALARM",
+    "slot": "6:00 AM",
+    "variation_id": 48,
+    "normalized": "alarm  six zero am"
+  },
+  {
+    "transcript": "Alarm 8:00 AM",
+    "intent": "ALARM",
+    "slot": "8:00 AM",
+    "variation_id": 49,
+    "normalized": "alarm  eight zero am"
+  },
+  {
+    "transcript": "Alarm 9:00 PM",
+    "intent": "ALARM",
+    "slot": "9:00 PM",
+    "variation_id": 50,
+    "normalized": "alarm  nine zero pm"
+  },
+  {
+    "transcript": "Wake me up at 6:00 AM",
+    "intent": "ALARM",
+    "slot": "6:00 AM",
+    "variation_id": 51,
+    "normalized": "wake me up at  six zero am"
+  },
+  {
+    "transcript": "Wake me up at 8:00 AM",
+    "intent": "ALARM",
+    "slot": "8:00 AM",
+    "variation_id": 52,
+    "normalized": "wake me up at  eight zero am"
+  },
+  {
+    "transcript": "Wake me up at 9:00 PM",
+    "intent": "ALARM",
+    "slot": "9:00 PM",
+    "variation_id": 53,
+    "normalized": "wake me up at  nine zero pm"
+  },
+  {
+    "transcript": "Set an alarm for 6:00 AM",
+    "intent": "ALARM",
+    "slot": "6:00 AM",
+    "variation_id": 54,
+    "normalized": "set an alarm for  six zero am"
+  },
+  {
+    "transcript": "Set an alarm for 8:00 AM",
+    "intent": "ALARM",
+    "slot": "8:00 AM",
+    "variation_id": 55,
+    "normalized": "set an alarm for  eight zero am"
+  },
+  {
+    "transcript": "Set an alarm for 9:00 PM",
+    "intent": "ALARM",
+    "slot": "9:00 PM",
+    "variation_id": 56,
+    "normalized": "set an alarm for  nine zero pm"
+  },
+  {
+    "transcript": "Temperature 18 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "18 degrees",
+    "variation_id": 57,
+    "normalized": "temperature  eighteen degrees"
+  },
+  {
+    "transcript": "Temperature 22 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "22 degrees",
+    "variation_id": 58,
+    "normalized": "temperature  twenty two degrees"
+  },
+  {
+    "transcript": "Temperature 26 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "26 degrees",
+    "variation_id": 59,
+    "normalized": "temperature  twenty six degrees"
+  },
+  {
+    "transcript": "Change the temperature to 18 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "18 degrees",
+    "variation_id": 60,
+    "normalized": "change the temperature to  eighteen degrees"
+  },
+  {
+    "transcript": "Change the temperature to 22 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "22 degrees",
+    "variation_id": 61,
+    "normalized": "change the temperature to  twenty two degrees"
+  },
+  {
+    "transcript": "Change the temperature to 26 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "26 degrees",
+    "variation_id": 62,
+    "normalized": "change the temperature to  twenty six degrees"
+  },
+  {
+    "transcript": "Set the temperature to 18 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "18 degrees",
+    "variation_id": 63,
+    "normalized": "set the temperature to  eighteen degrees"
+  },
+  {
+    "transcript": "Set the temperature to 22 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "22 degrees",
+    "variation_id": 64,
+    "normalized": "set the temperature to  twenty two degrees"
+  },
+  {
+    "transcript": "Set the temperature to 26 degrees",
+    "intent": "TEMPERATURE",
+    "slot": "26 degrees",
+    "variation_id": 65,
+    "normalized": "set the temperature to  twenty six degrees"
+  },
+  {
+    "transcript": "Brightness 20 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "20 percent",
+    "variation_id": 66,
+    "normalized": "brightness  twenty percent"
+  },
+  {
+    "transcript": "Brightness 60 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "60 percent",
+    "variation_id": 67,
+    "normalized": "brightness  sixty percent"
+  },
+  {
+    "transcript": "Brightness 100 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "100 percent",
+    "variation_id": 68,
+    "normalized": "brightness  one hundred percent"
+  },
+  {
+    "transcript": "Adjust brightness to 20 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "20 percent",
+    "variation_id": 69,
+    "normalized": "adjust brightness to  twenty percent"
+  },
+  {
+    "transcript": "Adjust brightness to 60 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "60 percent",
+    "variation_id": 70,
+    "normalized": "adjust brightness to  sixty percent"
+  },
+  {
+    "transcript": "Adjust brightness to 100 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "100 percent",
+    "variation_id": 71,
+    "normalized": "adjust brightness to  one hundred percent"
+  },
+  {
+    "transcript": "Brightness level 20 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "20 percent",
+    "variation_id": 72,
+    "normalized": "brightness level  twenty percent"
+  },
+  {
+    "transcript": "Brightness level 60 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "60 percent",
+    "variation_id": 73,
+    "normalized": "brightness level  sixty percent"
+  },
+  {
+    "transcript": "Brightness level 100 percent",
+    "intent": "BRIGHTNESS",
+    "slot": "100 percent",
+    "variation_id": 74,
+    "normalized": "brightness level  one hundred percent"
+  },
+  {
+    "transcript": "Change color to Red",
+    "intent": "COLOR",
+    "slot": "Red",
+    "variation_id": 75,
+    "normalized": "change color to red"
+  },
+  {
+    "transcript": "Change color to Blue",
+    "intent": "COLOR",
+    "slot": "Blue",
+    "variation_id": 76,
+    "normalized": "change color to blue"
+  },
+  {
+    "transcript": "Change color to Green",
+    "intent": "COLOR",
+    "slot": "Green",
+    "variation_id": 77,
+    "normalized": "change color to green"
+  },
+  {
+    "transcript": "Switch color to Red",
+    "intent": "COLOR",
+    "slot": "Red",
+    "variation_id": 78,
+    "normalized": "switch color to red"
+  },
+  {
+    "transcript": "Switch color to Blue",
+    "intent": "COLOR",
+    "slot": "Blue",
+    "variation_id": 79,
+    "normalized": "switch color to blue"
+  },
+  {
+    "transcript": "Switch color to Green",
+    "intent": "COLOR",
+    "slot": "Green",
+    "variation_id": 80,
+    "normalized": "switch color to green"
+  },
+  {
+    "transcript": "Set color to Red",
+    "intent": "COLOR",
+    "slot": "Red",
+    "variation_id": 81,
+    "normalized": "set color to red"
+  },
+  {
+    "transcript": "Set color to Blue",
+    "intent": "COLOR",
+    "slot": "Blue",
+    "variation_id": 82,
+    "normalized": "set color to blue"
+  },
+  {
+    "transcript": "Set color to Green",
+    "intent": "COLOR",
+    "slot": "Green",
+    "variation_id": 83,
+    "normalized": "set color to green"
+  },
+  {
+    "transcript": "Reminder Drink water",
+    "intent": "CREATE_REMINDER",
+    "slot": "Drink water",
+    "variation_id": 84,
+    "normalized": "reminder drink water"
+  },
+  {
+    "transcript": "Reminder Study",
+    "intent": "CREATE_REMINDER",
+    "slot": "Study",
+    "variation_id": 85,
+    "normalized": "reminder study"
+  },
+  {
+    "transcript": "Reminder Exercise",
+    "intent": "CREATE_REMINDER",
+    "slot": "Exercise",
+    "variation_id": 86,
+    "normalized": "reminder exercise"
+  },
+  {
+    "transcript": "Remind me to Drink water",
+    "intent": "CREATE_REMINDER",
+    "slot": "Drink water",
+    "variation_id": 87,
+    "normalized": "remind me to drink water"
+  },
+  {
+    "transcript": "Remind me to Study",
+    "intent": "CREATE_REMINDER",
+    "slot": "Study",
+    "variation_id": 88,
+    "normalized": "remind me to study"
+  },
+  {
+    "transcript": "Remind me to Exercise",
+    "intent": "CREATE_REMINDER",
+    "slot": "Exercise",
+    "variation_id": 89,
+    "normalized": "remind me to exercise"
+  },
+  {
+    "transcript": "Create a reminder to Drink water",
+    "intent": "CREATE_REMINDER",
+    "slot": "Drink water",
+    "variation_id": 90,
+    "normalized": "create a reminder to drink water"
+  },
+  {
+    "transcript": "Create a reminder to Study",
+    "intent": "CREATE_REMINDER",
+    "slot": "Study",
+    "variation_id": 91,
+    "normalized": "create a reminder to study"
+  },
+  {
+    "transcript": "Create a reminder to Exercise",
+    "intent": "CREATE_REMINDER",
+    "slot": "Exercise",
+    "variation_id": 92,
+    "normalized": "create a reminder to exercise"
   }
 ]

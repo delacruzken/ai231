@@ -2,10 +2,13 @@
 __pycache__/
 *.pyc
 .DS_Store
-data/
+/data/
 MNIST/
-# ME2: heavy training artifacts stay out of git (code + docs + small dist/ ship)
+# ME2: local datasets + heavy/generated artifacts stay out of git
+me2/data/
 me2/grammar_asr/runs/
+me2/grammar_asr/build/
 me2/grammar_asr/__pycache__/
+me2/grammar_asr/**/__pycache__/
 .ipynb_checkpoints/
 *.egg-info/
