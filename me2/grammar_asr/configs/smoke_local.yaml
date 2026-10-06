@@ -13,7 +13,7 @@ target_far: 0.5
 amp: false
 
 model:
-  name: kiwi
+  name: intent
   gru_hidden: 32
   gru_layers: 1
   dropout: 0.1

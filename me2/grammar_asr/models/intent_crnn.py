@@ -1,7 +1,7 @@
-"""KIWI-style depthwise-CRNN with intent + slot heads (from-scratch).
+"""Depthwise-CRNN with intent + slot heads (from-scratch).
 
-Inspired by Quiel Quiwa's ME2 KIWI (~372K params): DS-conv blocks, BiGRU,
-attention pooling, 20-way intent/OOS head, and six 3-way slot heads.
+Compact DS-conv blocks, BiGRU, attention pooling, 20-way intent/OOS head,
+and six 3-way slot heads. Sized for on-device intent classification.
 """
 from __future__ import annotations
 
@@ -51,18 +51,21 @@ class AttentionPool(nn.Module):
         v = v.transpose(1, 2)
         attn = (q @ k.transpose(-2, -1)) * self.scale
         if mask is not None:
-            attn = attn.masked_fill(~mask[:, None, None, :], -1e9)
+            # -1e9 overflows float16 under AMP; use the dtype's finite floor.
+            attn = attn.masked_fill(
+                ~mask[:, None, None, :], torch.finfo(attn.dtype).min
+            )
         attn = attn.softmax(dim=-1)
         out = (attn @ v).transpose(1, 2).reshape(B, 1, D)
         return self.proj(out).squeeze(1)
 
 
-class KiwiCRNN(nn.Module):
+class IntentCRNN(nn.Module):
     def __init__(self, n_mels: int = 40, conv_channels=(64, 96, 128, 128),
                  gru_hidden: int = 96, gru_layers: int = 2,
                  n_heads: int = 4, dropout: float = 0.15):
         super().__init__()
-        self.model_kind = "kiwi"
+        self.model_kind = "intent"
         chs = [n_mels, *conv_channels]
         blocks = []
         for i in range(len(conv_channels)):

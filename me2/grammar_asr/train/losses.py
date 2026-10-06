@@ -1,4 +1,4 @@
-"""Training losses for CTC / KIWI / hybrid models."""
+"""Training losses for CTC / intent-CRNN / hybrid models."""
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -36,7 +36,8 @@ def encode_targets(transcripts: Sequence[str]) -> Tuple[torch.Tensor, torch.Tens
 def ctc_loss_fn(logits, targets, input_lengths, target_lengths, blank=None):
     blank = NUM_CLASSES - 1 if blank is None else blank
     # logits: (B, T, C) -> (T, B, C)
-    log_probs = F.log_softmax(logits, dim=-1).transpose(0, 1)
+    # CTC's long reductions are numerically unstable in float16 under AMP.
+    log_probs = F.log_softmax(logits.float(), dim=-1).transpose(0, 1)
     return F.ctc_loss(log_probs, targets, input_lengths, target_lengths,
                       blank=blank, zero_infinity=True)
 

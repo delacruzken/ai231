@@ -6,7 +6,7 @@ Pareto rule: maximize `test.real.command_accuracy` subject to
 ```bash
 python -m grammar_asr.scripts.compare_runs \
   grammar_asr/runs/ctc_gold_s0/summary.json \
-  grammar_asr/runs/kiwi_gold_s1/summary.json \
+  grammar_asr/runs/intent_gold_s1/summary.json \
   grammar_asr/runs/hybrid_gold_s0/summary.json \
   --max-far 0.10 --max-params 500000 \
   --out grammar_asr/runs/selection.json

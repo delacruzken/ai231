@@ -1,6 +1,6 @@
 # DGX A100 run — gold local dataset (data/gold, 658 synthetic clips, 20 intents + OOS).
 # Smoke-sized for the first end-to-end GPU validation; bump epochs for the real run.
-tag: kiwi_dgx_smoke
+tag: intent_dgx_smoke
 seed: 1
 device: cuda
 smoke: true
@@ -18,7 +18,7 @@ amp: true
 decode_prefer: intent_head
 
 model:
-  name: kiwi
+  name: intent
   gru_hidden: 96
   gru_layers: 2
   dropout: 0.15

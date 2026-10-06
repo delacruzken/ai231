@@ -3,7 +3,7 @@
 Supports:
   - Local folder layout: {root}/{train,test,holdout}/manifest.csv + audio/
   - DGX class path: /data/ai231
-  - Hugging Face: airimonda/ai231-me2-voice-commands (optional)
+  - Hugging Face course gold dataset (optional)
 
 Never mutates official split membership. Validation is a speaker-disjoint
 fold carved from train only.

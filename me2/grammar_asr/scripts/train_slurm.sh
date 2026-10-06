@@ -9,11 +9,11 @@
 #SBATCH --error=me2/grammar_asr/runs/slurm-%j.err
 #
 # Usage (from repo root):
-#   sbatch me2/grammar_asr/scripts/train_slurm.sh me2/grammar_asr/configs/kiwi_gold.yaml
+#   sbatch me2/grammar_asr/scripts/train_slurm.sh me2/grammar_asr/configs/intent_gold.yaml
 #   CONFIG=me2/grammar_asr/configs/ctc_gold.yaml sbatch me2/grammar_asr/scripts/train_slurm.sh
 set -euo pipefail
 
-CONFIG="${1:-${CONFIG:-me2/grammar_asr/configs/kiwi_gold.yaml}}"
+CONFIG="${1:-${CONFIG:-me2/grammar_asr/configs/intent_gold.yaml}}"
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "$REPO_ROOT"
 

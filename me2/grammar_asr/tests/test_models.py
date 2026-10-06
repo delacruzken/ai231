@@ -4,14 +4,14 @@ from grammar_asr.models import build_model, count_params
 from grammar_asr.schema import NUM_INTENT_OOS, SLOT_INTENTS
 
 
-def test_kiwi_forward_and_size():
-    m = build_model("kiwi", gru_hidden=96, gru_layers=2)
+def test_intent_forward_and_size():
+    m = build_model("intent", gru_hidden=96, gru_layers=2)
     x = torch.randn(2, 300, 40)
     out = m(x)
     assert out["intent_logits"].shape == (2, NUM_INTENT_OOS)
     for intent in SLOT_INTENTS:
         assert intent in out["slot_logits"]
-    # Target band from peer KIWI (~0.2–0.4M); allow some slack
+    # Compact on-device band (~0.2–0.4M); allow some slack
     n = count_params(m)
     assert 100_000 < n < 600_000, n
 

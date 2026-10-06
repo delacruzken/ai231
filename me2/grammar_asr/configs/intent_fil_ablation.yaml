@@ -1,5 +1,5 @@
 # Optional Filipino-supplement ablation (train-only). Document licensing caveats.
-tag: kiwi_fil_s1
+tag: intent_fil_s1
 seed: 1
 device: cuda
 epochs: 80
@@ -14,7 +14,7 @@ amp: true
 decode_prefer: intent_head
 
 model:
-  name: kiwi
+  name: intent
   gru_hidden: 96
   gru_layers: 2
   dropout: 0.15

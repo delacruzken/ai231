@@ -1,7 +1,7 @@
 """Canonical ME2 Option-B semantic schema.
 
 Source of truth: schema/variations.csv (class Option B sheet mirrored from
-huggingface.co/datasets/airimonda/ai231-me2-voice-commands).
+the course gold Hugging Face dataset).
 
 Counts:
   - 19 intents + OUT_OF_SCOPE

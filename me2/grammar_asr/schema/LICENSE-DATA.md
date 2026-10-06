@@ -1,7 +1,7 @@
 # Dataset licensing notes (research / education only)
 
 Primary shared dataset:
-[airimonda/ai231-me2-voice-commands](https://huggingface.co/datasets/airimonda/ai231-me2-voice-commands)
+[course gold dataset](https://huggingface.co/datasets/airimonda/ai231-me2-voice-commands)
 DOI `10.57967/hf/10723`.
 
 There is **no single permissive license** for the combined release. Each source
