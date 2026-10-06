@@ -1,6 +1,6 @@
 # Official Pi benchmark (`vcm-benchmark`)
 
-Use the class harness: https://github.com/airimonda/vcm-benchmark
+Use the class VCM benchmark harness: https://github.com/airimonda/vcm-benchmark
 
 ## Before you start
 

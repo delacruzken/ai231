@@ -5,7 +5,7 @@
 ```bash
 python -m grammar_asr.export.export_onnx \
   --ckpt grammar_asr/runs/<tag>/best.pt \
-  --model kiwi \
+  --model intent \
   --out grammar_asr/runs/<tag>/model.onnx
 
 python -m grammar_asr.export.build_bundle \

@@ -65,7 +65,7 @@ class VoiceAssistant:
         command_model: Path,
         wake_model: Optional[Path] = None,
         reject_gate: Optional[Path] = None,
-        wake_phrase_norm: str = "hey kiwi",
+        wake_phrase_norm: str = "kaki",
         wake_threshold: float = 0.7,
         student_id: str = "me2",
         log_dir: Optional[str] = None,
@@ -197,6 +197,8 @@ def main(argv=None):
     ap.add_argument("--log-dir", default=None)
     ap.add_argument("--prefer", default="auto")
     ap.add_argument("--wake-threshold", type=float, default=0.7)
+    ap.add_argument("--wake-phrase", default="kaki",
+                    help="Expected wake phrase label (training/docs; ONNX is binary)")
     args = ap.parse_args(argv)
 
     asst = VoiceAssistant(
@@ -206,6 +208,7 @@ def main(argv=None):
         student_id=args.student_id,
         log_dir=args.log_dir,
         prefer=args.prefer,
+        wake_phrase_norm=str(args.wake_phrase).strip().lower(),
         wake_threshold=args.wake_threshold,
     )
     if args.mic:

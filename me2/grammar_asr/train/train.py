@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Config-driven ME2 VCM trainer (CTC / KIWI / hybrid), DGX-ready.
+"""Config-driven ME2 VCM trainer (CTC / intent-CRNN / hybrid), DGX-ready.
 
 Examples:
   python -m grammar_asr.train.train --config grammar_asr/configs/smoke.yaml
-  python -m grammar_asr.train.train --config grammar_asr/configs/kiwi_gold.yaml --device cuda
+  python -m grammar_asr.train.train --config grammar_asr/configs/intent_gold.yaml --device cuda
 """
 from __future__ import annotations
 
@@ -89,14 +89,17 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     data_cfg = cfg.get("data", {})
-    root_arg = data_cfg.get("root")
-    if root_arg and not Path(root_arg).is_absolute():
-        # Resolve relative roots against me2/ (package parent), then CWD.
-        cand = (ME2_ROOT / root_arg).resolve()
-        root_arg = str(cand if cand.exists() else Path(root_arg).resolve())
-    root = discover_dataset_root(root_arg)
-    use_hf = bool(data_cfg.get("use_hf", False)) or root is None
-    if data_cfg.get("require_local") and root is None:
+    use_hf = bool(data_cfg.get("use_hf", False))
+    root = None
+    if not use_hf:
+        root_arg = data_cfg.get("root")
+        if root_arg and not Path(root_arg).is_absolute():
+            # Resolve relative roots against me2/ (package parent), then CWD.
+            cand = (ME2_ROOT / root_arg).resolve()
+            root_arg = str(cand if cand.exists() else Path(root_arg).resolve())
+        root = discover_dataset_root(root_arg)
+        use_hf = root is None
+    if data_cfg.get("require_local") and (use_hf or root is None):
         raise FileNotFoundError(
             "Local dataset required but not found. Set data.root or ME2_DATA_ROOT."
         )
@@ -140,7 +143,7 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
     prefer = cfg.get("decode_prefer", "auto")
     if name in {"ctc", "ctc_low", "low"}:
         prefer = "grammar"
-    elif name in {"kiwi", "kiwi_crnn", "crnn"}:
+    elif name in {"intent", "intent_crnn", "crnn"}:
         prefer = "intent_head"
 
     opt = torch.optim.AdamW(

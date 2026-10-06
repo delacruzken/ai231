@@ -32,7 +32,7 @@ class _ExportWrapper(torch.nn.Module):
         out = self.model(feat)
         if self.kind == "ctc":
             return out["ctc_logits"]
-        if self.kind == "kiwi":
+        if self.kind == "intent":
             # intent + concatenated slot logits in fixed slot-intent order
             from ..schema import SLOT_INTENTS
             slots = [out["slot_logits"][k] for k in SLOT_INTENTS]
@@ -58,7 +58,7 @@ def export_onnx(ckpt: Path, out: Path, model_name: str,
         input_names, output_names = ["feat"], ["ctc_logits"]
         dynamic = {"feat": {0: "batch", 1: "time"},
                    "ctc_logits": {0: "batch", 1: "time"}}
-    elif kind == "kiwi":
+    elif kind == "intent":
         input_names, output_names = ["feat"], ["intent_logits", "slot_logits"]
         dynamic = {"feat": {0: "batch", 1: "time"},
                    "intent_logits": {0: "batch"},
@@ -135,7 +135,7 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--model", default=None,
-                    choices=["ctc", "ctc_low", "low", "kiwi", "hybrid", "wake"])
+                    choices=["ctc", "ctc_low", "low", "intent", "intent_crnn", "hybrid", "wake"])
     ap.add_argument("--quantize", action="store_true")
     ap.add_argument("--hidden", type=int, default=None)
     ap.add_argument("--gru-hidden", type=int, default=None)
@@ -143,7 +143,7 @@ def main():
     ap.add_argument("--num-blocks", type=int, default=None)
     args = ap.parse_args()
     kwargs = _kwargs_from_run(Path(args.ckpt))
-    model_name = args.model or kwargs.pop("name", None) or "kiwi"
+    model_name = args.model or kwargs.pop("name", None) or "intent"
     if args.hidden is not None:
         kwargs["hidden"] = args.hidden
     if args.gru_hidden is not None:

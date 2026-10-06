@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from .ctc_low import ResCTCEncoderLow
-from .kiwi_crnn import KiwiCRNN
+from .intent_crnn import IntentCRNN
 from .hybrid import HybridVCM
 from .wake import MicroWakeNet
 
@@ -21,8 +21,8 @@ def build_model(name: str, **kwargs) -> Any:
             num_blocks=int(kwargs.get("num_blocks", 5)),
             dropout=float(kwargs.get("dropout", 0.1)),
         )
-    if name in {"kiwi", "kiwi_crnn", "crnn"}:
-        return KiwiCRNN(
+    if name in {"intent", "intent_crnn", "crnn"}:
+        return IntentCRNN(
             gru_hidden=int(kwargs.get("gru_hidden", 96)),
             gru_layers=int(kwargs.get("gru_layers", 2)),
             dropout=float(kwargs.get("dropout", 0.15)),

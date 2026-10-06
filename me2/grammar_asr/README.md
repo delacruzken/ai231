@@ -7,7 +7,7 @@ Implementation of the ME2 voice-command system. See the top-level
 |---|---|
 | `schema/` | Canonical 93 variations + licensing notes |
 | `data/` | Gold dataset loader (local / DGX / HF) |
-| `models/` | CTC, KIWI CRNN, hybrid, wake |
+| `models/` | CTC, intent CRNN, hybrid, wake |
 | `decode/` | Grammar forced-align + reject gate |
 | `train/` | Config-driven A100/CPU trainer + evaluator |
 | `runtime/` | Pi assistant (VAD, wake, JSONL, actions) |
