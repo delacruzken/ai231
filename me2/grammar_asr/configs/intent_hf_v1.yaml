@@ -1,0 +1,48 @@
+# Intent-CRNN on course HF gold — experiment version v1 (baseline).
+# Goal: close the real-speech gap vs CTC grammar baseline (ctc_hf_s0).
+#
+# Tracked in grammar_asr/runs/ledger.jsonl — bump tag to intent_hf_v2 etc. for variants.
+tag: intent_hf_v1
+version: v1
+experiment: intent_crnn_hf
+notes: >
+  Baseline IntentCRNN (DS-conv + BiGRU96x2 + attn pool + intent/slot heads).
+  Same HF gold as ctc_hf_s0. AMP on. No FIL / synth-extra / numerals.
+parent: null
+seed: 1
+device: cuda
+epochs: 80
+batch_size: 128
+num_workers: 4
+lr: 0.001
+weight_decay: 0.0001
+warmup_epochs: 5
+max_seconds: 5.0
+char_reward: 0.15
+target_far: 0.10
+amp: true
+decode_prefer: intent_head
+
+model:
+  name: intent
+  gru_hidden: 96
+  gru_layers: 2
+  dropout: 0.15
+
+data:
+  root: null
+  use_hf: true
+  require_local: false
+  include_negatives: true
+  include_fil: false
+  include_synth_extra: false
+  include_numerals: false
+  val_fraction: 0.1
+  revision: null
+
+loss:
+  ctc_weight: 0.0
+  intent_weight: 1.0
+  slot_weight: 1.0
+  confusable_weight: 0.1
+  label_smoothing: 0.05

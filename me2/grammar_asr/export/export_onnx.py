@@ -135,7 +135,8 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--model", default=None,
-                    choices=["ctc", "ctc_low", "low", "intent", "intent_crnn", "hybrid", "wake"])
+                    choices=["ctc", "ctc_low", "low", "intent", "intent_crnn",
+                             "conformer", "matchbox", "hybrid", "wake"])
     ap.add_argument("--quantize", action="store_true")
     ap.add_argument("--hidden", type=int, default=None)
     ap.add_argument("--gru-hidden", type=int, default=None)

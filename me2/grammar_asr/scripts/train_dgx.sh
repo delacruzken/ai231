@@ -89,4 +89,12 @@ python -m grammar_asr.scripts.audit_dataset "${AUDIT_ARGS[@]}" \
   --out "grammar_asr/runs/dataset_audit_${SLURM_JOB_ID:-local}.json" || true
 
 python -m grammar_asr.train.train --config "$CONFIG_PATH" --device cuda
+
+# Always refresh both scoreboards after a finished run (idempotent).
+python -m grammar_asr.scripts.update_scoreboard --sync || true
+python - <<'PY' || true
+from pathlib import Path
+from grammar_asr.scripts.list_experiments import write_scoreboard
+print("Wrote", write_scoreboard(Path("grammar_asr/runs")))
+PY
 echo "DONE $CONFIG_PATH"

@@ -31,6 +31,7 @@ from ..models import build_model, count_params
 from ..schema import schema_fingerprint
 from .losses import multitask_loss
 from .evaluate import evaluate_loader, save_eval
+from .experiment_log import append_ledger, write_notes, seed_baseline_ctc_entry
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 ME2_ROOT = PACKAGE_ROOT.parent
@@ -80,13 +81,20 @@ def forward_model(model, feat, lengths):
     return out
 
 
-def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
+def train_one(cfg: Dict[str, Any], config_path: Path, overwrite: bool = False) -> Path:
     seed = int(cfg.get("seed", 0))
     set_seed(seed)
     device = resolve_device(str(cfg.get("device", "auto")))
     tag = cfg.get("tag") or f"{cfg['model']['name']}_{seed}"
     run_dir = RUNS_DIR / tag
+    if run_dir.exists() and (run_dir / "summary.json").exists() and not overwrite:
+        raise FileExistsError(
+            f"Run tag '{tag}' already exists at {run_dir}. "
+            f"Bump the version (e.g. intent_hf_v2) or pass --overwrite."
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
+    seed_baseline_ctc_entry(RUNS_DIR)
+    write_notes(run_dir, cfg)
 
     data_cfg = cfg.get("data", {})
     use_hf = bool(data_cfg.get("use_hf", False))
@@ -135,17 +143,25 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
         batch_size=int(cfg.get("batch_size", 32)),
         num_workers=int(cfg.get("num_workers", 2)),
         max_seconds=float(cfg.get("max_seconds", 5.0)),
+        real_weight=float(data_cfg.get("real_weight", 1.0)),
+        oos_weight=float(data_cfg.get("oos_weight", 1.0)),
+        augment=bool(data_cfg.get("augment", False)),
+        seed=seed,
     )
 
     model_cfg = dict(cfg.get("model", {}))
     name = model_cfg.pop("name")
     model = build_model(name, **model_cfg).to(device)
     prefer = cfg.get("decode_prefer", "auto")
+    intent_names = {
+        "intent", "intent_crnn", "crnn",
+        "matchbox", "intent_matchbox",
+        "conformer", "intent_conformer", "tiny_conformer",
+    }
     if name in {"ctc", "ctc_low", "low"}:
         prefer = "grammar"
-    elif name in {"intent", "intent_crnn", "crnn"}:
+    elif name in intent_names:
         prefer = "intent_head"
-
     opt = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg.get("lr", 1e-3)),
@@ -176,6 +192,10 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
         "device": str(device),
         "params": count_params(model),
         "model_name": name,
+        "version": cfg.get("version"),
+        "experiment": cfg.get("experiment"),
+        "notes": cfg.get("notes"),
+        "parent": cfg.get("parent"),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "env": {
             "python": sys.version.split()[0],
@@ -188,6 +208,8 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
     ckpt_meta = {
         "tag": tag,
         "model_name": name,
+        "version": cfg.get("version"),
+        "experiment": cfg.get("experiment"),
         "seed": seed,
         "git_commit": meta["git_commit"],
         "params": meta["params"],
@@ -197,9 +219,32 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
     )
     export_grammar_json(PACKAGE_ROOT / "grammar_commands.json")
 
-    print(f"Run {tag} | model={name} params={count_params(model):,} | device={device}")
-    print(f"Train {len(splits['train'])} | Val {len(splits['val'])} | "
-          f"Test {len(splits['test'])} | hf={use_hf}")
+    append_ledger(RUNS_DIR, {
+        "tag": tag,
+        "version": cfg.get("version"),
+        "experiment": cfg.get("experiment"),
+        "status": "running",
+        "model": name,
+        "params": meta["params"],
+        "notes": str(cfg.get("notes") or "").strip(),
+        "parent": cfg.get("parent"),
+        "config_path": str(config_path),
+        "run_dir": str(run_dir),
+        "started_at": meta["started_at"],
+        "git_commit": meta["git_commit"],
+        "seed": seed,
+    })
+
+    # Tee-friendly epoch log inside the run dir
+    train_log = run_dir / "train.log"
+    def log_line(msg: str) -> None:
+        print(msg, flush=True)
+        with train_log.open("a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+
+    log_line(f"Run {tag} | model={name} params={count_params(model):,} | device={device}")
+    log_line(f"Train {len(splits['train'])} | Val {len(splits['val'])} | "
+             f"Test {len(splits['test'])} | hf={use_hf}")
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -219,6 +264,7 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
                     slot_weight=float(loss_cfg.get("slot_weight", 1.0)),
                     confusable_weight=float(loss_cfg.get("confusable_weight", 0.0)),
                     label_smoothing=float(loss_cfg.get("label_smoothing", 0.0)),
+                    misfire_weight=float(loss_cfg.get("misfire_weight", 0.0)),
                 )
             if not torch.isfinite(loss):
                 continue
@@ -233,27 +279,33 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
         if epoch > warmup:
             sched.step()
 
-        # Val selection metric: command accuracy (no reject gate yet)
+        # Val selection: blend overall + real-voice command acc (vcm-me2 style).
         val = evaluate_loader(
             model, loaders["val"], device, prefer=prefer,
             char_reward=float(cfg.get("char_reward", 0.15)),
             max_batches=cfg.get("max_eval_batches"),
         )
-        metric = val["command_accuracy"]
+        select_w = float(cfg.get("select_real_weight", 0.0))
+        overall = val["command_accuracy"]
+        real_cmd = (val.get("real") or {}).get("command_accuracy", overall)
+        metric = (1.0 - select_w) * overall + select_w * real_cmd
         row = {
             "epoch": epoch,
             "loss": tot / max(n_batch, 1),
             "val_intent_acc": val["intent_accuracy"],
             "val_command_acc": val["command_accuracy"],
+            "val_real_command_acc": real_cmd,
+            "val_select": metric,
             "val_far": val["false_accept_rate"],
             "val_frr": val["false_reject_rate"],
             "lr": opt.param_groups[0]["lr"],
             "seconds": time.time() - t0,
         }
         history.append(row)
-        print(
+        log_line(
             f"Epoch {epoch:3d}/{epochs} loss {row['loss']:.3f} "
-            f"val_cmd {metric*100:5.2f}% intent {val['intent_accuracy']*100:5.2f}% "
+            f"val_cmd {overall*100:5.2f}% real {real_cmd*100:5.2f}% "
+            f"select {metric*100:5.2f}% intent {val['intent_accuracy']*100:5.2f}% "
             f"FAR {val['false_accept_rate']*100:4.1f}% "
             f"FRR {val['false_reject_rate']*100:4.1f}% ({row['seconds']:.0f}s)"
         )
@@ -263,13 +315,15 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
             best_metric = metric
             torch.save({"model": model.state_dict(), "epoch": epoch, "meta": ckpt_meta},
                        best_path)
-            print(f"  -> saved best (val command {metric*100:.2f}%)")
+            log_line(
+                f"  -> saved best (select {metric*100:.2f}% = "
+                f"{(1-select_w):.2f}*all + {select_w:.2f}*real)"
+            )
 
         (run_dir / "history.json").write_text(
-            json.dumps({"history": history, "best_val_command_acc": best_metric},
+            json.dumps({"history": history, "best_val_select": best_metric},
                        indent=2) + "\n"
         )
-
     # Load best, calibrate reject gate on val, evaluate test
     ckpt = torch.load(best_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model"])
@@ -305,10 +359,16 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
 
     summary = {
         "tag": tag,
+        "version": cfg.get("version"),
+        "experiment": cfg.get("experiment"),
+        "notes": str(cfg.get("notes") or "").strip(),
+        "parent": cfg.get("parent"),
         "model": name,
         "params": count_params(model),
         "best_epoch": ckpt.get("epoch"),
-        "best_val_command_acc": best_metric,
+        "best_val_select": best_metric,
+        "best_val_command_acc": best_metric,  # legacy alias for scoreboard
+        "select_real_weight": float(cfg.get("select_real_weight", 0.0)),
         "val": {k: val_final[k] for k in (
             "intent_accuracy", "command_accuracy", "false_accept_rate",
             "false_reject_rate", "real", "synthetic", "n")},
@@ -318,9 +378,43 @@ def train_one(cfg: Dict[str, Any], config_path: Path) -> Path:
         "reject_gate": gate.to_dict(),
         "git_commit": meta["git_commit"],
         "dataset_fingerprint": fp["sha256_file_list"],
+        "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(json.dumps(summary, indent=2))
+    append_ledger(RUNS_DIR, {
+        "tag": tag,
+        "version": summary["version"],
+        "experiment": summary["experiment"],
+        "status": "done",
+        "model": name,
+        "params": summary["params"],
+        "notes": summary["notes"],
+        "parent": summary["parent"],
+        "best_epoch": summary["best_epoch"],
+        "best_val_command_acc": best_metric,
+        "best_val_select": best_metric,
+        "val": summary["val"],
+        "test": summary["test"],
+        "reject_gate": summary["reject_gate"],
+        "run_dir": str(run_dir),
+        "started_at": meta["started_at"],
+        "finished_at": summary["finished_at"],
+        "git_commit": meta["git_commit"],
+        "seed": seed,
+    })
+    # Refresh markdown + HTML scoreboards (every finished run).
+    try:
+        from ..scripts.list_experiments import write_scoreboard
+        write_scoreboard(RUNS_DIR)
+    except Exception as exc:  # pragma: no cover
+        log_line(f"(ledger markdown refresh skipped: {exc})")
+    try:
+        from ..scripts.update_scoreboard import sync_all_runs
+        html_path = sync_all_runs(RUNS_DIR, force=False)
+        log_line(f"Scoreboard updated: {html_path}")
+    except Exception as exc:  # pragma: no cover
+        log_line(f"(HTML scoreboard refresh skipped: {exc})")
+    log_line(json.dumps(summary, indent=2))
     return run_dir
 
 
@@ -330,6 +424,8 @@ def main(argv=None):
     ap.add_argument("--device", type=str, default=None)
     ap.add_argument("--tag", type=str, default=None)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="Allow reusing an existing run tag (destructive)")
     args = ap.parse_args(argv)
     cfg = load_config(Path(args.config))
     if args.device:
@@ -338,7 +434,7 @@ def main(argv=None):
         cfg["tag"] = args.tag
     if args.smoke:
         cfg["smoke"] = True
-    train_one(cfg, Path(args.config))
+    train_one(cfg, Path(args.config), overwrite=bool(args.overwrite))
 
 
 if __name__ == "__main__":

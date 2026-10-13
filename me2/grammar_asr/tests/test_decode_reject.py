@@ -5,7 +5,7 @@ from grammar_asr.decode import (
     build_grammar, decode_model_output, RejectGate, calibrate_reject_gate,
 )
 from grammar_asr.decode.semantic import SemanticPrediction
-from grammar_asr.schema import OUT_OF_SCOPE, NUM_INTENT_OOS, VARIATIONS
+from grammar_asr.schema import OUT_OF_SCOPE, NUM_INTENT_OOS, VARIATIONS, INTENT_TO_ID, SLOT_VALUES
 
 
 def test_grammar_has_93():
@@ -21,6 +21,19 @@ def test_intent_head_decode_oos():
     pred = decode_model_output({"intent_logits": logits, "slot_logits": {}})
     assert pred.intent == OUT_OF_SCOPE
     assert pred.rejected
+
+
+def test_intent_head_decode_concat_onnx_slots():
+    """ONNX export concatenates 6×3 slot logits into one (1, 18) vector."""
+    intent = torch.zeros(1, NUM_INTENT_OOS)
+    intent[0, INTENT_TO_ID["TIMER"]] = 5.0
+    slots = np.zeros(18, dtype=np.float32)
+    # TIMER is first SLOT_INTENT; pick value index 1 ("30 seconds")
+    slots[1] = 3.0
+    pred = decode_model_output({"intent_logits": intent, "slot_logits": slots[None]})
+    assert pred.intent == "TIMER"
+    assert pred.slot == SLOT_VALUES["TIMER"][1]
+    assert pred.source == "intent_head"
 
 
 def test_reject_gate():
