@@ -27,6 +27,7 @@ from ..schema import (
     lookup_variation, VARIATIONS,
 )
 from .features import SAMPLE_RATE, load_wav, log_mel, normalize_feat
+from .augment import resolve_aug, spec_augment
 
 HF_DATASET_ID = "airimonda/ai231-me2-voice-commands"
 DEFAULT_LOCAL_CANDIDATES = [
@@ -334,10 +335,12 @@ def dataset_fingerprint(samples_by_split: Dict[str, Sequence[Sample]],
 
 class GoldDataset(Dataset):
     def __init__(self, samples: Sequence[Sample], max_seconds: float = 6.0,
-                 pad: bool = True):
+                 pad: bool = True, augment: bool | str = False, seed: int = 0):
         self.samples = list(samples)
         self.max_samples = int(max_seconds * SAMPLE_RATE)
         self.pad = pad
+        self.aug_cfg = resolve_aug(augment)
+        self._rng = np.random.default_rng(seed)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -355,6 +358,8 @@ class GoldDataset(Dataset):
         elif self.pad and len(audio) < self.max_samples:
             audio = np.pad(audio, (0, self.max_samples - len(audio)))
         feat = normalize_feat(log_mel(audio))
+        if self.aug_cfg is not None:
+            feat = spec_augment(feat, rng=self._rng, **self.aug_cfg)
         return {
             "feat": torch.from_numpy(feat),
             "T": feat.shape[0],
@@ -457,19 +462,58 @@ def build_mixture(
     return {"train": train, "val": val, "test": test}
 
 
+def sample_weights(
+    samples: Sequence[Sample],
+    *,
+    real_weight: float = 1.0,
+    oos_weight: float = 1.0,
+) -> torch.Tensor:
+    """Sampling weights: upweight real voices and OOS (vcm-me2 recipe)."""
+    w = np.ones(len(samples), dtype=np.float64)
+    for i, s in enumerate(samples):
+        if not s.is_synthetic:
+            w[i] *= float(real_weight)
+        if s.out_of_scope or s.intent == OUT_OF_SCOPE:
+            w[i] *= float(oos_weight)
+    return torch.from_numpy(w)
+
+
 def make_dataloaders(
     samples_by_split: Dict[str, Sequence[Sample]],
     batch_size: int = 32,
     num_workers: int = 0,
     max_seconds: float = 6.0,
+    *,
+    real_weight: float = 1.0,
+    oos_weight: float = 1.0,
+    augment: bool | str = False,
+    seed: int = 0,
 ) -> Dict[str, DataLoader]:
     out = {}
     for name, samples in samples_by_split.items():
-        ds = GoldDataset(samples, max_seconds=max_seconds)
+        is_train = name == "train"
+        use_aug = augment if is_train else False
+        ds = GoldDataset(
+            samples,
+            max_seconds=max_seconds,
+            augment=use_aug,
+            seed=seed + (0 if is_train else 1),
+        )
+        sampler = None
+        shuffle = is_train
+        if is_train and (real_weight != 1.0 or oos_weight != 1.0):
+            weights = sample_weights(
+                samples, real_weight=real_weight, oos_weight=oos_weight
+            )
+            sampler = torch.utils.data.WeightedRandomSampler(
+                weights, num_samples=len(samples), replacement=True,
+            )
+            shuffle = False
         out[name] = DataLoader(
             ds,
             batch_size=batch_size,
-            shuffle=(name == "train"),
+            shuffle=shuffle,
+            sampler=sampler,
             num_workers=num_workers,
             drop_last=False,
             collate_fn=collate_batch,

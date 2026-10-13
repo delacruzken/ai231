@@ -16,6 +16,18 @@ def test_intent_forward_and_size():
     assert 100_000 < n < 600_000, n
 
 
+def test_conformer_and_matchbox_forward():
+    for name in ("conformer", "matchbox"):
+        m = build_model(name)
+        x = torch.randn(2, 300, 40)
+        out = m(x, lengths=torch.tensor([300, 250]))
+        assert out["intent_logits"].shape == (2, NUM_INTENT_OOS)
+        for intent in SLOT_INTENTS:
+            assert out["slot_logits"][intent].shape[0] == 2
+        n = count_params(m)
+        assert 150_000 < n < 450_000, (name, n)
+
+
 def test_ctc_low_temporal():
     m = build_model("ctc_low", hidden=64, num_blocks=2)
     x = torch.randn(2, 200, 40)

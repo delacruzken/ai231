@@ -1,6 +1,8 @@
 """Minimal mock device actions for demos (recognition stays independent)."""
 from __future__ import annotations
 
+from .console import tag, paint, C
+
 
 class MockDispatcher:
     def __init__(self, verbose: bool = True):
@@ -32,5 +34,8 @@ class MockDispatcher:
         }.get(intent, f"Unhandled intent {intent}")
         self.last = {"intent": intent, "slot": slot, "message": msg}
         if self.verbose:
-            print(f"[action] {msg}")
+            print(
+                f"{tag('action', 'action')} {paint(msg, C.BOLD, C.MAGENTA)}",
+                flush=True,
+            )
         return msg

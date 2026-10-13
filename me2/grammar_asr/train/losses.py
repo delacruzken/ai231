@@ -103,7 +103,8 @@ def multitask_loss(outputs: dict, batch: dict, *,
                    intent_weight: float = 1.0,
                    slot_weight: float = 1.0,
                    confusable_weight: float = 0.0,
-                   label_smoothing: float = 0.0) -> Tuple[torch.Tensor, dict]:
+                   label_smoothing: float = 0.0,
+                   misfire_weight: float = 0.0) -> Tuple[torch.Tensor, dict]:
     device = None
     for v in outputs.values():
         if torch.is_tensor(v):
@@ -158,6 +159,15 @@ def multitask_loss(outputs: dict, batch: dict, *,
                                           weight=confusable_weight)
             parts["confusable"] = float(pen.detach())
             total = total + pen
+        # Push true-OOS rows toward the OOS class (vcm-me2 misfire term).
+        if misfire_weight > 0:
+            oos_id = INTENT_TO_ID[OUT_OF_SCOPE]
+            oos_mask = y == oos_id
+            if bool(oos_mask.any()):
+                p_oos = F.softmax(outputs["intent_logits"][oos_mask], dim=-1)[:, oos_id]
+                loss_m = misfire_weight * (1.0 - p_oos).mean()
+                parts["misfire"] = float(loss_m.detach())
+                total = total + loss_m
 
     if "slot_logits" in outputs and slot_weight > 0:
         slot_t = slot_targets(batch["intent"], batch["slot"])

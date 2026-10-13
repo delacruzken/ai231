@@ -1,0 +1,51 @@
+# Intent v2 — MatchboxNet M (bake-off co-leader in vcm-me2) + improved recipe.
+tag: intent_hf_v2_matchbox
+version: v2
+experiment: intent_matchbox_hf
+notes: >
+  MatchboxNet M (~300k) ported from airimonda/vcm-me2. Same v2 recipe as
+  conformer (real_weight=5, SpecAug, misfire, select on real). Bake-off peer.
+parent: intent_hf_v1
+seed: 0
+device: cuda
+epochs: 60
+batch_size: 64
+num_workers: 4
+lr: 0.003
+weight_decay: 0.01
+warmup_epochs: 2
+max_seconds: 5.0
+char_reward: 0.15
+target_far: 0.10
+amp: true
+decode_prefer: intent_head
+select_real_weight: 0.5
+
+model:
+  name: matchbox
+  width: 104
+  blocks: 4
+  repeat: 2
+  dropout: 0.1
+
+data:
+  root: null
+  use_hf: true
+  require_local: false
+  include_negatives: true
+  include_fil: false
+  include_synth_extra: false
+  include_numerals: false
+  val_fraction: 0.1
+  revision: null
+  real_weight: 5.0
+  oos_weight: 3.0
+  augment: true
+
+loss:
+  ctc_weight: 0.0
+  intent_weight: 1.0
+  slot_weight: 1.0
+  confusable_weight: 0.1
+  label_smoothing: 0.1
+  misfire_weight: 1.0

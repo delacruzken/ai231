@@ -196,8 +196,34 @@ def main():
         "val_negative": len(val_neg),
     }
     summary_path = out.with_suffix(".metrics.json")
+    # Prefer canonical name best.metrics.json next to checkpoint.
+    if out.name == "best.pt":
+        summary_path = out.parent / "best.metrics.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
+
+    # Versioned HTML scoreboard + ledger (append_ledger triggers SCOREBOARD.html)
+    try:
+        from .experiment_log import append_ledger
+        runs_dir = Path(__file__).resolve().parents[1] / "runs"
+        tag = out.parent.name
+        version = None
+        if "_v" in tag:
+            version = "v" + tag.rsplit("_v", 1)[-1]
+        append_ledger(runs_dir, {
+            "tag": tag,
+            "version": version,
+            "experiment": "wake_kaki",
+            "status": "done",
+            "model": "wake",
+            "params": summary.get("params"),
+            "notes": f"Wake retrain · thr={best_metrics.get('threshold')}",
+            "validation": best_metrics,
+            "run_dir": str(out.parent),
+            "finished_at": __import__("time").strftime("%Y-%m-%dT%H:%M:%S"),
+        })
+    except Exception as exc:  # pragma: no cover
+        print(f"(scoreboard update skipped: {exc})")
 
 
 if __name__ == "__main__":

@@ -139,7 +139,31 @@ def decode_from_ctc_logits(ctc_logits, trie: Optional[GrammarTrie] = None,
     )
 
 
-def decode_from_intent_slot_heads(intent_logits, slot_logits: dict) -> SemanticPrediction:
+def _normalize_slot_logits(slot_logits) -> dict:
+    """Accept dict[str, logits] (training) or concatenated ONNX (B, 18) / (18,).
+
+    Export packs SLOT_INTENTS in order, 3 values each → 18 floats.
+    """
+    if slot_logits is None:
+        return {}
+    if isinstance(slot_logits, dict):
+        return slot_logits
+    if isinstance(slot_logits, torch.Tensor):
+        slot_logits = slot_logits.detach().cpu().numpy()
+    arr = np.asarray(slot_logits)
+    if arr.ndim == 2:
+        arr = arr[0]
+    out = {}
+    offset = 0
+    for intent in SLOT_INTENTS:
+        n = len(SLOT_VALUES[intent])
+        out[intent] = arr[offset: offset + n]
+        offset += n
+    return out
+
+
+def decode_from_intent_slot_heads(intent_logits, slot_logits=None) -> SemanticPrediction:
+    slot_logits = _normalize_slot_logits(slot_logits)
     if isinstance(intent_logits, torch.Tensor):
         intent_logits = intent_logits.detach().cpu().numpy()
     if intent_logits.ndim == 2:
@@ -156,13 +180,17 @@ def decode_from_intent_slot_heads(intent_logits, slot_logits: dict) -> SemanticP
                                   conf, margin, conf, "intent_head")
     slot = ""
     if intent in SLOT_INTENTS:
-        logits = slot_logits[intent]
-        if isinstance(logits, torch.Tensor):
-            logits = logits.detach().cpu().numpy()
-        if logits.ndim == 2:
-            logits = logits[0]
-        sid = int(np.argmax(logits))
-        slot = SLOT_VALUES[intent][sid]
+        logits = slot_logits.get(intent)
+        if logits is None:
+            slot = SLOT_VALUES[intent][0]
+        else:
+            if isinstance(logits, torch.Tensor):
+                logits = logits.detach().cpu().numpy()
+            logits = np.asarray(logits)
+            if logits.ndim == 2:
+                logits = logits[0]
+            sid = int(np.argmax(logits))
+            slot = SLOT_VALUES[intent][sid]
     # Pick a canonical variation phrase for this (intent, slot)
     phrase = ""
     vid = -1
@@ -182,23 +210,21 @@ def decode_model_output(outputs: dict, trie: Optional[GrammarTrie] = None,
                         char_reward: float = 0.15,
                         prefer: str = "auto") -> SemanticPrediction:
     """Decode a model forward() dict into a SemanticPrediction."""
-    has_ctc = "ctc_logits" in outputs
-    has_intent = "intent_logits" in outputs
+    has_ctc = "ctc_logits" in outputs and outputs["ctc_logits"] is not None
+    has_intent = "intent_logits" in outputs and outputs["intent_logits"] is not None
+    slots = outputs.get("slot_logits")
 
     if prefer == "grammar" and has_ctc:
         return decode_from_ctc_logits(outputs["ctc_logits"], trie, char_reward)
     if prefer == "intent_head" and has_intent:
-        return decode_from_intent_slot_heads(outputs["intent_logits"],
-                                            outputs.get("slot_logits") or {})
+        return decode_from_intent_slot_heads(outputs["intent_logits"], slots)
     if has_intent and not has_ctc:
-        return decode_from_intent_slot_heads(outputs["intent_logits"],
-                                            outputs.get("slot_logits") or {})
+        return decode_from_intent_slot_heads(outputs["intent_logits"], slots)
     if has_ctc and not has_intent:
         return decode_from_ctc_logits(outputs["ctc_logits"], trie, char_reward)
 
     # Hybrid: take intent head if confident OOS or strong, else grammar.
-    intent_pred = decode_from_intent_slot_heads(outputs["intent_logits"],
-                                                outputs.get("slot_logits") or {})
+    intent_pred = decode_from_intent_slot_heads(outputs["intent_logits"], slots)
     gram_pred = decode_from_ctc_logits(outputs["ctc_logits"], trie, char_reward)
     if intent_pred.intent == OUT_OF_SCOPE and intent_pred.confidence >= 0.5:
         intent_pred.source = "hybrid"

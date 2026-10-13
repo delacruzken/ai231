@@ -1,0 +1,55 @@
+# Intent v2 — Tiny Conformer M (vcm-me2 winner) + improved recipe.
+# Recipe: real-weighted sampling, SpecAugment, OOS misfire term,
+# select checkpoint on 0.5*all + 0.5*real command accuracy.
+tag: intent_hf_v2_conformer
+version: v2
+experiment: intent_conformer_hf
+notes: >
+  Tiny Conformer M (~300k) ported from airimonda/vcm-me2. Heavy SpecAug,
+  real_weight=5, oos_weight=3, misfire_weight=1, label_smoothing=0.1,
+  select_real_weight=0.5. Parent: intent_hf_v1 IntentCRNN baseline.
+parent: intent_hf_v1
+seed: 0
+device: cuda
+epochs: 60
+batch_size: 64
+num_workers: 4
+lr: 0.003
+weight_decay: 0.01
+warmup_epochs: 2
+max_seconds: 5.0
+char_reward: 0.15
+target_far: 0.10
+amp: true
+decode_prefer: intent_head
+select_real_weight: 0.5
+
+model:
+  name: conformer
+  d: 64
+  layers: 4
+  heads: 4
+  ff_mult: 2
+  dropout: 0.1
+
+data:
+  root: null
+  use_hf: true
+  require_local: false
+  include_negatives: true
+  include_fil: false
+  include_synth_extra: false
+  include_numerals: false
+  val_fraction: 0.1
+  revision: null
+  real_weight: 5.0
+  oos_weight: 3.0
+  augment: true
+
+loss:
+  ctc_weight: 0.0
+  intent_weight: 1.0
+  slot_weight: 1.0
+  confusable_weight: 0.1
+  label_smoothing: 0.1
+  misfire_weight: 1.0

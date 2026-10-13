@@ -1,3 +1,4 @@
+# Prefer versioned HF runs: configs/intent_hf_v1.yaml (and v2…).
 tag: intent_gold_s1
 seed: 1
 device: cuda
