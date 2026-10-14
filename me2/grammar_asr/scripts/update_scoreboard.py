@@ -22,6 +22,40 @@ HISTORY = RUNS_DIR / "scoreboard_history.jsonl"
 HTML_OUT = RUNS_DIR / "SCOREBOARD.html"
 
 
+# Canonical version tags for runs that predate explicit version fields.
+KNOWN_VERSIONS = {
+    "ctc_hf_s0": "v0",
+    "wake_boss": "v0",
+    "wake_kaki": "v1",
+    "wake_kaki_v2": "v2",
+    "wake_kaki_v3": "v3",
+    "wake_kaki_v4": "v4",
+    "wake_kaki_v5": "v5",
+    "intent_hf_v1": "v1",
+    "intent_hf_v2_conformer": "v2",
+    "intent_hf_v2_matchbox": "v2",
+    "intent_hf_v2_crnn": "v2",
+    "intent_hf_v2b_crnn": "v2b",
+    "intent_hf_v2b_matchbox": "v2b",
+    "intent_hf_v3_crnn": "v3",
+}
+
+
+def normalize_version(tag: str, version: Any = None) -> str:
+    """Return a clean version label (v0 / v1 / v2 / v2b / v3 …), never 'v?'."""
+    if tag in KNOWN_VERSIONS:
+        return KNOWN_VERSIONS[tag]
+    v = str(version or "").strip()
+    if v and v not in {"v?", "?", "None", "null"}:
+        return v if v.startswith("v") else f"v{v}"
+    # Parse trailing _vN / _vNb from the tag itself.
+    if "_v" in tag:
+        tail = tag.rsplit("_v", 1)[-1]
+        if tail and tail[0].isdigit():
+            return f"v{tail}"
+    return "v0"
+
+
 def _pct(x: Any, digits: int = 1) -> str:
     if x is None:
         return "—"
@@ -77,9 +111,9 @@ def card_from_command_summary(summary_path: Path, **extra) -> Dict[str, Any]:
     if cfg_path.exists():
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     model_name = s.get("model") or (cfg.get("config") or {}).get("model", {}).get("name")
-    version = s.get("version") or extra.get("version") or "v?"
-    experiment = s.get("experiment") or extra.get("experiment") or model_name
     tag = s.get("tag") or run_dir.name
+    version = normalize_version(tag, s.get("version") or extra.get("version"))
+    experiment = s.get("experiment") or extra.get("experiment") or model_name
     test = s.get("test") or {}
     val = s.get("val") or {}
     real = test.get("real") or {}
@@ -156,17 +190,14 @@ def card_from_wake_metrics(metrics_path: Path, **extra) -> Dict[str, Any]:
     run_dir = metrics_path.parent
     v = m.get("validation") or {}
     tag = run_dir.name
-    version = extra.get("version") or (
-        tag.split("_v")[-1] if "_v" in tag else "v?"
-    )
-    if not str(version).startswith("v"):
-        version = f"v{version}"
+    version = normalize_version(tag, extra.get("version"))
+    wake_name = "boss" if "boss" in tag else "kaki"
     return {
         "kind": "wake",
         "tag": tag,
         "version": version,
-        "experiment": extra.get("experiment") or "wake_kaki",
-        "title": extra.get("title") or f"ME2 wake · kaki · {version}",
+        "experiment": extra.get("experiment") or f"wake_{wake_name}",
+        "title": extra.get("title") or f"ME2 wake · {wake_name} · {version}",
         "subtitle": "Binary MicroWakeNet · always-on keyword gate",
         "notes": extra.get("notes") or "",
         "model": {
@@ -455,12 +486,19 @@ def render_html(cards: List[Dict[str, Any]]) -> str:
             body.append(render_wake_card(c))
         else:
             body.append(render_command_card(c))
-    toc = "".join(
-        f'<li><a href="#{html.escape(c["tag"])}">'
-        f'<span class="toc-ver">{html.escape(str(c.get("version")))}</span> '
-        f'{html.escape(c["tag"])}</a></li>'
-        for c in cards
-    )
+    toc_parts = []
+    for c in cards:
+        tag = c["tag"]
+        ver = normalize_version(tag, c.get("version"))
+        kind = "wake" if c.get("kind") == "wake" else "command"
+        ver_cls = "toc-ver wake" if kind == "wake" else "toc-ver"
+        toc_parts.append(
+            f'<li><a href="#{html.escape(tag)}">'
+            f'<span class="{ver_cls}">{html.escape(ver)}</span>'
+            f'<span class="toc-kind">{kind}</span>'
+            f'<code>{html.escape(tag)}</code></a></li>'
+        )
+    toc = "".join(toc_parts)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -490,12 +528,23 @@ def render_html(cards: List[Dict[str, Any]]) -> str:
     background: #fff; border: 1px solid var(--line); border-radius: 4px;
     padding: .85rem 1rem; margin-bottom: 1.25rem;
   }}
-  nav ol {{ margin: .4rem 0 0; padding-left: 1.2rem; columns: 2; gap: 1.5rem; }}
+  nav ol {{
+    margin: .4rem 0 0; padding-left: 1.2rem;
+    columns: 1; column-count: 1; max-width: 36rem;
+  }}
+  nav li {{ break-inside: avoid; margin: .2rem 0; }}
   nav a {{ color: var(--maroon); text-decoration: none; }}
+  nav a:hover {{ text-decoration: underline; }}
   .toc-ver {{
-    display: inline-block; min-width: 1.6rem; font-weight: 700;
+    display: inline-block; min-width: 2rem; text-align: center; font-weight: 700;
     color: #fff; background: var(--maroon); padding: 0 .35rem; border-radius: 3px;
-    font-size: .75rem; margin-right: .25rem;
+    font-size: .75rem; margin-right: .35rem;
+  }}
+  .toc-ver.wake {{ background: var(--wake); }}
+  .toc-kind {{
+    display: inline-block; min-width: 4.2rem; color: var(--muted);
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+    margin-right: .35rem;
   }}
   .slide {{
     background: var(--slide); border: 1px solid var(--line);
@@ -506,7 +555,6 @@ def render_html(cards: List[Dict[str, Any]]) -> str:
   }}
   @media (max-width: 900px) {{
     .slide {{ aspect-ratio: auto; }}
-    nav ol {{ columns: 1; }}
   }}
   .slide.wake {{ border-top: 4px solid var(--wake); }}
   .slide-top {{ display: flex; gap: .85rem; align-items: flex-start; }}
@@ -618,6 +666,8 @@ def append_scoreboard_version(card: Dict[str, Any],
     global HISTORY, HTML_OUT
     HISTORY = runs_dir / "scoreboard_history.jsonl"
     HTML_OUT = runs_dir / "SCOREBOARD.html"
+    card = dict(card)
+    card["version"] = normalize_version(str(card.get("tag") or ""), card.get("version"))
     # Avoid duplicate consecutive same tag+finished
     prev = load_history()
     if prev and prev[-1].get("tag") == card.get("tag") and prev[-1].get(
@@ -665,11 +715,12 @@ def sync_all_runs(runs_dir: Optional[Path] = None, *, force: bool = False) -> Pa
             continue
         s = json.loads(summary.read_text(encoding="utf-8"))
         model = s.get("model") or "intent"
-        version = s.get("version") or "v?"
+        version = normalize_version(tag, s.get("version"))
         experiment = s.get("experiment") or model
-        title = f"ME2 command · {experiment} · {version}"
         if tag == "ctc_hf_s0":
             title = "ME2 command · CTC grammar · v0"
+        else:
+            title = f"ME2 command · {experiment} · {version}"
         append_scoreboard_version(card_from_command_summary(
             summary,
             version=version,
@@ -679,20 +730,25 @@ def sync_all_runs(runs_dir: Optional[Path] = None, *, force: bool = False) -> Pa
         existing_tags.add(tag)
 
     wake_notes = {
+        "wake_boss": "Legacy wake (pre-kaki rename).",
+        "wake_kaki": "First kaki wake baseline.",
         "wake_kaki_v2": "Multi-speaker positives (hdc/fermina/keith).",
         "wake_kaki_v3": "Added hard negatives (good/cookie/khaki/…).",
+        "wake_kaki_v4": "Mac ambient hard-negs (silence/typing/noise/speech).",
+        "wake_kaki_v5": "Cleaned pos/neg after manual audit; Mac ambient kept.",
     }
     for metrics in _discover_wake_runs(runs_dir):
         tag = metrics.parent.name
         if not force and tag in existing_tags:
             continue
         note = wake_notes.get(tag, "")
-        ver = tag.split("_v")[-1] if "_v" in tag else "?"
+        ver = normalize_version(tag)
+        wake_name = "boss" if "boss" in tag else "kaki"
         append_scoreboard_version(card_from_wake_metrics(
             metrics,
-            version=f"v{ver}" if not str(ver).startswith("v") else ver,
+            version=ver,
             notes=note,
-            title=f"ME2 wake · kaki · v{ver}",
+            title=f"ME2 wake · {wake_name} · {ver}",
         ), runs_dir)
         existing_tags.add(tag)
 
