@@ -32,13 +32,20 @@ mkdir -p ~/vcm_benchmark
 
 ## 4. Run
 
+Run from `~/me2` with the venv active (the bundle is a **flat** layout; do not
+use `python -m`). Live `[wake]` / `[cmd]` / `[action]` lines print in the SSH
+terminal.
+
 ```bash
+cd ~/me2 && source .venv/bin/activate
+
 # WAV smoke
 python assistant.py --model model.onnx --reject-gate reject_gate.json --wav cmd.wav
 
 # Always-on mic (wake → command → sleep)
 python assistant.py --model model.onnx --reject-gate reject_gate.json \
-  --wake-model wake.onnx --mic --student-id YOUR_ID
+  --wake-model wake.onnx --prefer intent_head --wake-threshold 0.70 \
+  --mic --debug --student-id YOUR_ID
 ```
 
 Each decision appends one JSON line with `intent`, `slot`, `infer_ms`, `audio_ms`.

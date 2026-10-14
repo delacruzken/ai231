@@ -50,6 +50,9 @@ class EnergyVAD:
         thr = max(self.cfg.energy_threshold, self.noise_floor * self.cfg.start_ratio)
         if not self.speaking:
             if e < thr:
+                # Abort a partial start so leftover frames cannot sticky-lock VAD.
+                self.speech_run = 0
+                self.buf.clear()
                 self.noise_floor = 0.95 * self.noise_floor + 0.05 * e
                 return None
             self.speech_run += 1

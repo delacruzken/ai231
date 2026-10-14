@@ -7,8 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import torch
-import torch.nn.functional as F
+
+try:
+    import torch
+except ImportError:  # pragma: no cover — Pi bundle is torch-free
+    torch = None  # type: ignore
 
 from ..schema import (
     OUT_OF_SCOPE, INTENT_TO_ID, ID_TO_INTENT, SLOT_INTENTS, SLOT_VALUES,
@@ -113,9 +116,15 @@ def _softmax_np(x: np.ndarray) -> np.ndarray:
     return e / e.sum()
 
 
+def _as_numpy(x):
+    if torch is not None and isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
+
+
 def decode_from_ctc_logits(ctc_logits, trie: Optional[GrammarTrie] = None,
                            char_reward: float = 0.15) -> SemanticPrediction:
-    if isinstance(ctc_logits, torch.Tensor):
+    if torch is not None and isinstance(ctc_logits, torch.Tensor):
         lp = torch.log_softmax(ctc_logits, dim=-1).detach().cpu().numpy()
     else:
         x = ctc_logits - ctc_logits.max(axis=-1, keepdims=True)
@@ -148,9 +157,7 @@ def _normalize_slot_logits(slot_logits) -> dict:
         return {}
     if isinstance(slot_logits, dict):
         return slot_logits
-    if isinstance(slot_logits, torch.Tensor):
-        slot_logits = slot_logits.detach().cpu().numpy()
-    arr = np.asarray(slot_logits)
+    arr = _as_numpy(slot_logits)
     if arr.ndim == 2:
         arr = arr[0]
     out = {}
@@ -164,8 +171,7 @@ def _normalize_slot_logits(slot_logits) -> dict:
 
 def decode_from_intent_slot_heads(intent_logits, slot_logits=None) -> SemanticPrediction:
     slot_logits = _normalize_slot_logits(slot_logits)
-    if isinstance(intent_logits, torch.Tensor):
-        intent_logits = intent_logits.detach().cpu().numpy()
+    intent_logits = _as_numpy(intent_logits)
     if intent_logits.ndim == 2:
         intent_logits = intent_logits[0]
     probs = _softmax_np(intent_logits.astype(np.float64))
@@ -184,9 +190,7 @@ def decode_from_intent_slot_heads(intent_logits, slot_logits=None) -> SemanticPr
         if logits is None:
             slot = SLOT_VALUES[intent][0]
         else:
-            if isinstance(logits, torch.Tensor):
-                logits = logits.detach().cpu().numpy()
-            logits = np.asarray(logits)
+            logits = _as_numpy(logits)
             if logits.ndim == 2:
                 logits = logits[0]
             sid = int(np.argmax(logits))
