@@ -6,6 +6,8 @@ __pycache__/
 MNIST/
 # ME2: local datasets + heavy/generated artifacts stay out of git
 me2/data/
+me2/.env
+me2/.spotify_tokens.json
 me2/grammar_asr/runs/
 me2/grammar_asr/build/
 me2/grammar_asr/__pycache__/

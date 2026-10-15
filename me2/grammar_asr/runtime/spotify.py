@@ -1,0 +1,477 @@
+"""Spotify Web API playback for ME2 voice intents (Mac Connect / Premium).
+
+Requires one-time OAuth via ``python -m scripts.spotify_auth`` (from me2/).
+Credentials: ``me2/.env`` — tokens: ``me2/.spotify_tokens.json`` (gitignored).
+"""
+from __future__ import annotations
+
+import base64
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+ME2_ROOT = Path(__file__).resolve().parents[2]
+ENV_PATH = ME2_ROOT / ".env"
+TOKEN_PATH = ME2_ROOT / ".spotify_tokens.json"
+API = "https://api.spotify.com/v1"
+ACCOUNTS = "https://accounts.spotify.com"
+
+DEFAULT_PLAYLIST_URI = "spotify:playlist:3eurayPQQ7IvoqkkletA89"
+DEFAULT_REDIRECT = "http://127.0.0.1:8888/callback"
+# Minimal player scopes (enough to shuffle-play a playlist URI you already know).
+SCOPES = " ".join([
+    "user-modify-playback-state",
+    "user-read-playback-state",
+])
+
+
+def load_dotenv(path: Path = ENV_PATH) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    if not path.is_file():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        out[k.strip()] = v.strip().strip('"').strip("'")
+    return out
+
+
+def _json_request(
+    method: str,
+    url: str,
+    *,
+    headers: Optional[Dict[str, str]] = None,
+    data: Optional[bytes] = None,
+    form: Optional[Dict[str, str]] = None,
+) -> tuple[int, Any]:
+    hdrs = dict(headers or {})
+    body = data
+    if form is not None:
+        body = urllib.parse.urlencode(form).encode("utf-8")
+        hdrs.setdefault("Content-Type", "application/x-www-form-urlencoded")
+    req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
+    def _parse_body(raw: bytes) -> Any:
+        if not raw or not raw.strip():
+            return None
+        text = raw.decode("utf-8", errors="replace").strip()
+        if not text:
+            return None
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Spotify player endpoints often return 204 / empty / non-JSON.
+            return {"_raw": text}
+
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw = resp.read()
+            code = resp.getcode()
+            return code, _parse_body(raw)
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        payload = _parse_body(raw)
+        if payload is None:
+            payload = {"error": f"http_{exc.code}", "reason": str(exc.reason)}
+        return int(exc.code), payload
+
+
+class SpotifyController:
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        *,
+        playlist_uri: str = DEFAULT_PLAYLIST_URI,
+        redirect_uri: str = DEFAULT_REDIRECT,
+        token_path: Path = TOKEN_PATH,
+        verbose: bool = True,
+    ):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.playlist_uri = playlist_uri
+        self.redirect_uri = redirect_uri
+        self.token_path = token_path
+        self.verbose = verbose
+        self._access: Optional[str] = None
+        self._refresh: Optional[str] = None
+        self._expires_at = 0.0
+        self._duck_restore: Optional[int] = None
+        self._load_tokens()
+
+    @classmethod
+    def from_env(cls, verbose: bool = True) -> Optional["SpotifyController"]:
+        env = load_dotenv()
+        # Prefer process env over file so shell exports still work.
+        client_id = os.environ.get("SPOTIFY_CLIENT_ID") or env.get("SPOTIFY_CLIENT_ID")
+        client_secret = (
+            os.environ.get("SPOTIFY_CLIENT_SECRET") or env.get("SPOTIFY_CLIENT_SECRET")
+        )
+        if not client_id or not client_secret:
+            return None
+        playlist = (
+            os.environ.get("SPOTIFY_PLAYLIST_URI")
+            or env.get("SPOTIFY_PLAYLIST_URI")
+            or DEFAULT_PLAYLIST_URI
+        )
+        redirect = (
+            os.environ.get("SPOTIFY_REDIRECT_URI")
+            or env.get("SPOTIFY_REDIRECT_URI")
+            or DEFAULT_REDIRECT
+        )
+        return cls(
+            client_id,
+            client_secret,
+            playlist_uri=playlist,
+            redirect_uri=redirect,
+            verbose=verbose,
+        )
+
+    def _log(self, msg: str) -> None:
+        if self.verbose:
+            print(f"[spotify] {msg}", flush=True)
+
+    def _load_tokens(self) -> None:
+        if not self.token_path.is_file():
+            return
+        try:
+            data = json.loads(self.token_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        self._access = data.get("access_token")
+        self._refresh = data.get("refresh_token")
+        self._expires_at = float(data.get("expires_at") or 0)
+
+    def _save_tokens(self) -> None:
+        payload = {
+            "access_token": self._access,
+            "refresh_token": self._refresh,
+            "expires_at": self._expires_at,
+        }
+        self.token_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    def store_token_response(self, data: Dict[str, Any]) -> None:
+        self._access = data.get("access_token")
+        if data.get("refresh_token"):
+            self._refresh = data["refresh_token"]
+        expires_in = int(data.get("expires_in") or 3600)
+        self._expires_at = time.time() + max(30, expires_in - 60)
+        self._save_tokens()
+
+    def _basic_auth_header(self) -> str:
+        raw = f"{self.client_id}:{self.client_secret}".encode("utf-8")
+        return "Basic " + base64.b64encode(raw).decode("ascii")
+
+    def refresh_access_token(self) -> bool:
+        if not self._refresh:
+            self._log("no refresh token — run: python -m scripts.spotify_auth")
+            return False
+        # Prefer confidential refresh; fall back to PKCE-style (client_id only).
+        attempts = [
+            {
+                "headers": {"Authorization": self._basic_auth_header()},
+                "form": {
+                    "grant_type": "refresh_token",
+                    "refresh_token": self._refresh,
+                },
+            },
+            {
+                "headers": {},
+                "form": {
+                    "grant_type": "refresh_token",
+                    "refresh_token": self._refresh,
+                    "client_id": self.client_id,
+                },
+            },
+        ]
+        data = None
+        code = 0
+        for attempt in attempts:
+            code, data = _json_request(
+                "POST",
+                f"{ACCOUNTS}/api/token",
+                headers=attempt["headers"] or None,
+                form=attempt["form"],
+            )
+            if code == 200 and isinstance(data, dict) and data.get("access_token"):
+                self.store_token_response(data)
+                self._log("access token refreshed")
+                return True
+        self._log(f"token refresh failed ({code}): {data}")
+        return False
+
+    def access_token(self) -> Optional[str]:
+        if self._access and time.time() < self._expires_at:
+            return self._access
+        if self.refresh_access_token():
+            return self._access
+        return self._access
+
+    def _api(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: Optional[Dict[str, str]] = None,
+        body: Optional[dict] = None,
+    ) -> tuple[int, Any]:
+        token = self.access_token()
+        if not token:
+            return 401, {"error": "not_authorized"}
+        url = f"{API}{path}"
+        if query:
+            url += "?" + urllib.parse.urlencode(query)
+        headers = {"Authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        code, payload = _json_request(method, url, headers=headers, data=data)
+        if code == 401:
+            if self.refresh_access_token():
+                headers["Authorization"] = f"Bearer {self._access}"
+                code, payload = _json_request(method, url, headers=headers, data=data)
+        return code, payload
+
+    def list_devices(self) -> List[dict]:
+        code, data = self._api("GET", "/me/player/devices")
+        if code != 200 or not isinstance(data, dict):
+            self._log(f"devices failed ({code}): {data}")
+            return []
+        return list(data.get("devices") or [])
+
+    def pick_device_id(self) -> Optional[str]:
+        devices = self.list_devices()
+        if not devices:
+            self._log(
+                "no Spotify Connect devices — open the Mac Spotify app and play "
+                "any track once, then retry"
+            )
+            return None
+        # Prefer active, then Computer, then first.
+        for d in devices:
+            if d.get("is_active"):
+                return str(d.get("id"))
+        for d in devices:
+            name = str(d.get("name") or "").lower()
+            dtype = str(d.get("type") or "").lower()
+            if "mac" in name or dtype == "computer":
+                return str(d.get("id"))
+        return str(devices[0].get("id"))
+
+    def play_playlist_shuffled(self, playlist_uri: Optional[str] = None) -> bool:
+        uri = playlist_uri or self.playlist_uri
+        device_id = self.pick_device_id()
+        q: Dict[str, str] = {"state": "true"}
+        if device_id:
+            q["device_id"] = device_id
+
+        code, data = self._api("PUT", "/me/player/shuffle", query=q)
+        if code not in (200, 204):
+            self._log(f"shuffle failed ({code}): {data}")
+
+        play_q = {"device_id": device_id} if device_id else None
+        code, data = self._api(
+            "PUT",
+            "/me/player/play",
+            query=play_q,
+            body={"context_uri": uri},
+        )
+        if code in (200, 204):
+            self._log(f"playing shuffled {uri}")
+            return True
+        # Common: no active device until Spotify app is open / recently playing.
+        self._log(f"play failed ({code}): {data}")
+        if code == 404:
+            self._log(
+                "tip: open Mac Spotify, play any song once, then retry "
+                "--test-play"
+            )
+        return False
+
+    def pause(self) -> bool:
+        device_id = self.pick_device_id()
+        q = {"device_id": device_id} if device_id else None
+        code, data = self._api("PUT", "/me/player/pause", query=q)
+        ok = code in (200, 204)
+        self._log("paused" if ok else f"pause failed ({code}): {data}")
+        return ok
+
+    def next_track(self) -> bool:
+        device_id = self.pick_device_id()
+        q = {"device_id": device_id} if device_id else None
+        code, data = self._api("POST", "/me/player/next", query=q)
+        ok = code in (200, 204)
+        self._log("next track" if ok else f"next failed ({code}): {data}")
+        return ok
+
+    def get_playback(self) -> Dict[str, Any]:
+        code, data = self._api("GET", "/me/player")
+        if code != 200 or not isinstance(data, dict):
+            return {"is_playing": False, "volume_percent": None, "raw": data}
+        device = data.get("device") or {}
+        vol = device.get("volume_percent")
+        return {
+            "is_playing": bool(data.get("is_playing")),
+            "volume_percent": int(vol) if vol is not None else None,
+            "device_id": device.get("id"),
+        }
+
+    def set_volume(self, percent: int, device_id: Optional[str] = None) -> bool:
+        new_vol = max(0, min(100, int(percent)))
+        q = {"volume_percent": str(new_vol)}
+        dev = device_id or self.pick_device_id()
+        if dev:
+            q["device_id"] = str(dev)
+        code, data = self._api("PUT", "/me/player/volume", query=q)
+        ok = code in (200, 204)
+        self._log(
+            f"volume {new_vol}%" if ok else f"volume failed ({code}): {data}"
+        )
+        return ok
+
+    def adjust_volume(self, delta: int) -> bool:
+        pb = self.get_playback()
+        vol = pb.get("volume_percent")
+        if vol is None:
+            vol = 50
+        # If user changes volume while ducked, treat that as the new baseline.
+        if self._duck_restore is not None:
+            self._duck_restore = None
+        return self.set_volume(int(vol) + int(delta), pb.get("device_id"))
+
+    def duck_for_listen(self, fraction: float = 0.20) -> bool:
+        """Alexa-style: while listening, drop volume to ``fraction`` of current."""
+        pb = self.get_playback()
+        if not pb.get("is_playing"):
+            return False
+        vol = pb.get("volume_percent")
+        if vol is None:
+            return False
+        # Already ducked — don't stack.
+        if self._duck_restore is not None:
+            return True
+        ducked = max(1, min(100, int(round(float(vol) * float(fraction)))))
+        if ducked >= int(vol):
+            return False
+        self._duck_restore = int(vol)
+        self._log(f"duck {vol}% → {ducked}% for listen")
+        return self.set_volume(ducked, pb.get("device_id"))
+
+    def restore_after_duck(self) -> bool:
+        if self._duck_restore is None:
+            return False
+        target = int(self._duck_restore)
+        self._duck_restore = None
+        self._log(f"restore volume → {target}%")
+        return self.set_volume(target)
+
+    def handle_intent(self, intent: str, slot: str = "") -> None:
+        intent = (intent or "").upper()
+        if intent == "PLAY_MUSIC":
+            # Don't leave the new track at ducked volume.
+            self.restore_after_duck()
+            self.play_playlist_shuffled()
+        elif intent == "PAUSE":
+            self.pause()
+            self.restore_after_duck()
+        elif intent == "STOP":
+            self.pause()
+            self.restore_after_duck()
+        elif intent == "NEXT":
+            self.next_track()
+        elif intent == "VOLUME_UP":
+            self.adjust_volume(+10)
+        elif intent == "VOLUME_DOWN":
+            self.adjust_volume(-10)
+
+
+_CTRL: Optional[SpotifyController] = None
+
+
+def _shared_controller(verbose: bool = True) -> Optional[SpotifyController]:
+    global _CTRL
+    if _CTRL is None:
+        _CTRL = SpotifyController.from_env(verbose=verbose)
+    elif verbose:
+        _CTRL.verbose = verbose
+    return _CTRL
+
+
+def maybe_handle_intent(intent: str, slot: str = "", *, verbose: bool = True) -> None:
+    """Fire-and-forget Spotify side effect when credentials exist."""
+    ctrl = _shared_controller(verbose=verbose)
+    if ctrl is None:
+        return
+    if not ctrl._refresh and not ctrl._access:
+        if verbose:
+            print(
+                "[spotify] not authorized yet — run: "
+                "python -m scripts.spotify_auth",
+                flush=True,
+            )
+        return
+
+    def worker() -> None:
+        try:
+            ctrl.handle_intent(intent, slot)
+        except Exception as exc:  # pragma: no cover
+            if verbose:
+                print(f"[spotify] error: {exc}", flush=True)
+
+    import threading
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def maybe_duck_for_listen(*, verbose: bool = True, fraction: float = 0.20) -> None:
+    """Lower Spotify volume quickly on wake (background thread)."""
+    ctrl = _shared_controller(verbose=verbose)
+    if ctrl is None or (not ctrl._refresh and not ctrl._access):
+        return
+
+    def worker() -> None:
+        try:
+            ctrl.duck_for_listen(fraction=fraction)
+        except Exception as exc:  # pragma: no cover
+            if verbose:
+                print(f"[spotify] duck error: {exc}", flush=True)
+
+    import threading
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def maybe_restore_after_duck(*, verbose: bool = True, delay_s: float = 0.0) -> None:
+    """Restore pre-wake Spotify volume after the listen window / TTS.
+
+    Pass ``delay_s`` so volume stays low while the den speaks (weather, etc.).
+    """
+    ctrl = _shared_controller(verbose=verbose)
+    if ctrl is None or (not ctrl._refresh and not ctrl._access):
+        return
+    if ctrl._duck_restore is None:
+        return
+
+    import threading
+
+    def worker() -> None:
+        try:
+            wait = max(0.0, float(delay_s))
+            if wait:
+                if verbose:
+                    print(
+                        f"[spotify] keep ducked {wait:.1f}s for spoken reply",
+                        flush=True,
+                    )
+                time.sleep(wait)
+            ctrl.restore_after_duck()
+        except Exception as exc:  # pragma: no cover
+            if verbose:
+                print(f"[spotify] unduck error: {exc}", flush=True)
+
+    threading.Thread(target=worker, daemon=True).start()

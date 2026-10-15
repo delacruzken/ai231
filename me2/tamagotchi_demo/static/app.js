@@ -30,17 +30,32 @@
     spoken: "Partly cloudy to cloudy in Metro Manila, with isolated showers possible",
   };
 
+  function showSoundPrompt() {
+    if (soundPrompt) soundPrompt.hidden = false;
+    if (enableBtn) enableBtn.hidden = false;
+  }
+
+  function syncSoundReady() {
+    soundReady = !!(audioCtx && audioCtx.state === "running");
+    if (soundReady) dismissSoundPrompt();
+    else showSoundPrompt();
+    return soundReady;
+  }
+
   function ensureAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
     }
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    soundReady = true;
+    if (audioCtx.state === "suspended") {
+      // resume() is async; only mark ready when it actually runs.
+      audioCtx.resume().then(syncSoundReady).catch(() => showSoundPrompt());
+    }
+    return syncSoundReady();
   }
 
   function tone(freq, start, dur, type, peak) {
-    if (!soundReady || !audioCtx) return;
+    if (!audioCtx || audioCtx.state !== "running") return;
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = type;
@@ -54,27 +69,71 @@
     o.stop(start + dur + 0.02);
   }
 
-  function beepWake() {
-    if (!soundReady || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    tone(784, t0, 0.14, "triangle", 0.2);
-    tone(1175, t0 + 0.13, 0.22, "triangle", 0.22);
-    tone(1568, t0 + 0.26, 0.18, "sine", 0.1);
+  function postAudioGate(type, ms) {
+    const body = { type, ts: Date.now() / 1000 };
+    if (ms != null) body.ms = ms;
+    fetch("/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => { /* ignore */ });
   }
 
-  function beepReject() {
-    if (!soundReady || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    tone(392, t0, 0.16, "sine", 0.16);
-    tone(247, t0 + 0.14, 0.28, "triangle", 0.18);
+  function estimateSpeechMs(text) {
+    const words = String(text || "").trim().split(/\s+/).filter(Boolean).length;
+    // Match assistant duck/mute leeway (browser TTS is often slow).
+    return Math.min(14000, Math.max(2200, words * 550 + 1000));
   }
+
+  function playBeep(kind) {
+    ensureAudio();
+    const busyMs = kind === "timeout" ? 480 : kind === "reject" ? 600 : 700;
+    postAudioGate("audio_busy", busyMs);
+    const play = () => {
+      if (!audioCtx || audioCtx.state !== "running") {
+        showSoundPrompt();
+        setTimeout(() => postAudioGate("audio_idle"), busyMs);
+        return;
+      }
+      const t0 = audioCtx.currentTime;
+      if (kind === "reject") {
+        // Low falling error (didn't understand).
+        tone(392, t0, 0.16, "sine", 0.16);
+        tone(247, t0 + 0.14, 0.28, "triangle", 0.18);
+      } else if (kind === "timeout") {
+        // Soft double blip — listen window ended, back to wake (not an error).
+        tone(520, t0, 0.1, "sine", 0.11);
+        tone(520, t0 + 0.16, 0.12, "sine", 0.09);
+      } else {
+        // Rising wake chime.
+        tone(784, t0, 0.14, "triangle", 0.2);
+        tone(1175, t0 + 0.13, 0.22, "triangle", 0.22);
+        tone(1568, t0 + 0.26, 0.18, "sine", 0.1);
+      }
+      setTimeout(() => postAudioGate("audio_idle"), busyMs);
+    };
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume().then(() => { syncSoundReady(); play(); }).catch(play);
+    } else {
+      play();
+    }
+  }
+
+  function beepWake() { playBeep("wake"); }
+  function beepReject() { playBeep("reject"); }
+  function beepTimeout() { playBeep("timeout"); }
 
   function speak(text) {
     if (!text || !window.speechSynthesis) return;
+    ensureAudio();
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.05;
     u.pitch = 1.0;
+    const ms = estimateSpeechMs(text);
+    postAudioGate("audio_busy", ms);
+    u.onend = () => postAudioGate("audio_idle");
+    u.onerror = () => postAudioGate("audio_idle");
     window.speechSynthesis.speak(u);
   }
 
@@ -247,17 +306,23 @@
     }
 
     if (ev.type === "wake") {
-      beepWake();
       msgBubble.hidden = true;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      postAudioGate("audio_idle");
+      beepWake();
       return;
     }
     if (ev.type === "reset") {
       msgBubble.hidden = true;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      postAudioGate("audio_idle");
       return;
     }
     if (ev.type === "listen_end") {
+      // No command before the listen window closed — soft cue, not reject.
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      captionEl.textContent = "";
+      beepTimeout();
       return;
     }
     if (ev.type === "reject") {
@@ -287,20 +352,45 @@
   }
 
   function dismissSoundPrompt() {
-    enableBtn.hidden = true;
-    soundPrompt.hidden = true;
+    if (enableBtn) enableBtn.hidden = true;
+    if (soundPrompt) soundPrompt.hidden = true;
   }
 
-  enableBtn.addEventListener("click", () => {
+  function unlockSound({ chime = false } = {}) {
     try {
       ensureAudio();
-      beepWake();
-    } catch (_) { /* autoplay policies */ }
-    dismissSoundPrompt();
-  });
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().then(() => {
+          syncSoundReady();
+          if (chime) beepWake();
+        }).catch(() => showSoundPrompt());
+      } else {
+        syncSoundReady();
+        if (chime) beepWake();
+      }
+    } catch (_) {
+      showSoundPrompt();
+    }
+  }
 
-  if (new URLSearchParams(location.search).has("nosound")) {
+  // Browsers block AudioContext until a user gesture.
+  function onFirstGesture() {
+    unlockSound({ chime: true });
+    window.removeEventListener("pointerdown", onFirstGesture, true);
+    window.removeEventListener("keydown", onFirstGesture, true);
+  }
+  window.addEventListener("pointerdown", onFirstGesture, true);
+  window.addEventListener("keydown", onFirstGesture, true);
+
+  if (enableBtn) {
+    enableBtn.addEventListener("click", () => unlockSound({ chime: true }));
+  }
+
+  const params = new URLSearchParams(location.search);
+  if (params.has("nosound")) {
     dismissSoundPrompt();
+  } else {
+    showSoundPrompt();
   }
 
   const es = new EventSource("/events");

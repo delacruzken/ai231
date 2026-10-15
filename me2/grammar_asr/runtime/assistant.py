@@ -88,14 +88,23 @@ class VoiceAssistant:
             min_confidence=0.35, min_margin=0.05
         )
         self.trie = build_grammar()
-        # Sleep-time VAD is stricter so quiet room noise does not form utterances.
-        self.vad = EnergyVAD(VADConfig(
-            energy_threshold=0.025,
-            start_ratio=2.5,
-            start_ms=180,
-            end_ms=450,
-            max_utterance_ms=4500,
-        ))
+        # Dual endpointing: snappy for wake, patient for commands so mid-phrase
+        # pauses do not cut "turn on the lights" in half.
+        self._vad_wake = dict(
+            energy_threshold=0.018,
+            start_ratio=2.0,
+            start_ms=90,
+            end_ms=280,
+            max_utterance_ms=2000,
+        )
+        self._vad_listen = dict(
+            energy_threshold=0.016,
+            start_ratio=1.8,
+            start_ms=120,
+            end_ms=850,  # wait ~0.85s of silence before decoding
+            max_utterance_ms=6000,
+        )
+        self.vad = EnergyVAD(VADConfig(**self._vad_wake))
         self.state = self.STATE_SLEEP
         self.wake_phrase_norm = wake_phrase_norm
         self.wake_threshold = wake_threshold
@@ -104,14 +113,19 @@ class VoiceAssistant:
         self.min_wake_ms = min_wake_ms
         self.max_wake_ms = max_wake_ms
         self.min_cmd_rms = min_cmd_rms
-        self.listen_timeout_s = 4.0
+        self.listen_timeout_s = 7.0
+        self.min_cmd_ms = 450.0  # ignore tiny mid-pause fragments while listening
         self._listen_started: float | None = None
+        self._mute_until = 0.0
+        self._mute_reason = ""
         self.char_reward = char_reward
         self.prefer = prefer
         self.debug = debug
+        self.demo_ui = bool(demo_ui)
+        self.demo_url = (demo_url or "http://127.0.0.1:8765").rstrip("/")
         self.logger = BenchmarkLogger(student_id=student_id, log_dir=log_dir)
         if demo_ui:
-            self.actions = HttpDemoDispatcher(base_url=demo_url, verbose=True)
+            self.actions = HttpDemoDispatcher(base_url=self.demo_url, verbose=True)
         else:
             self.actions = MockDispatcher(verbose=True)
         self.config = {
@@ -124,12 +138,60 @@ class VoiceAssistant:
             "max_wake_ms": max_wake_ms,
             "min_cmd_rms": min_cmd_rms,
             "demo_ui": bool(demo_ui),
-            "demo_url": demo_url if demo_ui else None,
+            "demo_url": self.demo_url if demo_ui else None,
             "listen_timeout_s": self.listen_timeout_s,
             "prefer": prefer,
             "debug": debug,
             "reject_gate": self.gate.to_dict(),
         }
+
+    def _use_wake_vad(self) -> None:
+        self.vad.configure(**self._vad_wake)
+        self.vad.reset()
+
+    def _use_listen_vad(self) -> None:
+        self.vad.configure(**self._vad_listen)
+        self.vad.reset()
+
+    @staticmethod
+    def _estimate_speech_s(text: str) -> float:
+        # Generous vs typical speechSynthesis (often slower than natural talk).
+        words = max(1, len(str(text or "").split()))
+        return float(min(14.0, max(2.2, words * 0.55 + 1.0)))
+
+    def _mute_for(self, seconds: float, reason: str, *, quiet: bool = False) -> None:
+        until = time.perf_counter() + max(0.0, float(seconds))
+        extended = until > self._mute_until + 0.05
+        if until > self._mute_until:
+            self._mute_until = until
+            self._mute_reason = reason
+            if extended and not quiet:
+                self._dbg(
+                    f"{tag('mute', 'vad')} hold {seconds:.2f}s ({reason}) — "
+                    f"ignoring mic until speakers finish"
+                )
+
+    def _speaker_busy(self) -> bool:
+        """True while local mute or demo UI reports TTS/chime playing."""
+        now = time.perf_counter()
+        if now < self._mute_until:
+            return True
+        if not self.demo_ui:
+            return False
+        try:
+            import urllib.request
+            with urllib.request.urlopen(
+                f"{self.demo_url}/audio-gate", timeout=0.15
+            ) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if bool(data.get("busy")):
+                rem = float(data.get("remaining_ms") or 0.0) / 1000.0
+                # Mirror remote gate locally so we don't hammer GET every frame.
+                self._mute_for(max(0.05, rem), "demo_audio_gate", quiet=True)
+                return True
+        except Exception:
+            return False
+        return False
 
     def _dbg(self, msg: str) -> None:
         if self.debug:
@@ -223,6 +285,20 @@ class VoiceAssistant:
             f"rms={rms:.4f} peak={peak:.4f} frames={len(audio)}"
         )
 
+        # Speakers still playing (wake chime / reject cue / TTS) — do not
+        # treat loopback as kaki or as a command.
+        if self._speaker_busy():
+            if self.state == self.STATE_LISTEN:
+                # Restart listen window after speakers finish.
+                self._listen_started = time.perf_counter()
+            self._dbg(
+                f"{tag('mute', 'vad')} skip loopback "
+                f"({self._mute_reason or 'speakers'}) "
+                f"audio={ms:.0f}ms"
+            )
+            self.vad.reset()
+            return None
+
         if self.state == self.STATE_SLEEP:
             # Score/gate on the active crop so trailing silence does not
             # make a real "kaki" look like a 2 s utterance.
@@ -255,13 +331,22 @@ class VoiceAssistant:
                 )
                 self.state = self.STATE_LISTEN
                 self._listen_started = time.perf_counter()
+                self._use_listen_vad()
                 print(
                     f"{tag('listen', 'listen')} say a command after "
                     f"'{self.wake_phrase_norm}'…",
                     flush=True,
                 )
                 # Alexa-like: beep + listening UI (browser handles chime/TTS).
+                # Mute command decode until the chime finishes (mic hears it).
+                self._mute_for(0.70, "wake_chime")
                 self.actions.notify("wake", phrase=self.wake_phrase_norm)
+                # Duck Spotify so the command can be heard over music.
+                try:
+                    from .spotify import maybe_duck_for_listen
+                    maybe_duck_for_listen(verbose=self.debug, fraction=0.20)
+                except Exception:
+                    pass
             else:
                 self._dbg(
                     f"{tag('wake', 'wake_miss')} miss {scored} "
@@ -280,9 +365,23 @@ class VoiceAssistant:
                 )
                 self.state = self.STATE_SLEEP
                 self._listen_started = None
+                self._mute_for(0.55, "listen_timeout_cue")
                 self.actions.notify("listen_end", reason="timeout")
-                self.vad.reset()
+                try:
+                    from .spotify import maybe_restore_after_duck
+                    maybe_restore_after_duck(verbose=self.debug, delay_s=0.55)
+                except Exception:
+                    pass
+                self._use_wake_vad()
                 return None
+        # Mid-phrase pause can still emit a short fragment — keep listening.
+        if ms < self.min_cmd_ms:
+            self._dbg(
+                f"{tag('cmd', 'vad')} skip short fragment "
+                f"audio={ms:.0f}ms < {self.min_cmd_ms:.0f}ms "
+                f"(still listening — finish your command)"
+            )
+            return None
         if rms < self.min_cmd_rms or peak < self.min_wake_peak_rms:
             self._dbg(
                 f"{tag('cmd', 'vad')} skip quiet leftover "
@@ -320,16 +419,38 @@ class VoiceAssistant:
             f"infer={infer_ms:.0f}ms audio={audio_ms:.0f}ms",
             flush=True,
         )
+        unduck_delay = 0.0
         if not pred.rejected and pred.intent != OUT_OF_SCOPE:
-            self.actions.dispatch(pred.intent, pred.slot)
+            spoken = self.actions.dispatch(pred.intent, pred.slot)
+            # Wait out TTS so confirmations are not heard as a wake/cmd.
+            tts_s = self._estimate_speech_s(spoken) + 0.6
+            self._mute_for(tts_s, "tts_confirm")
+            # Keep Spotify ducked while the den speaks (weather, time, etc.).
+            # Extra leeway so unduck doesn't overlap the end of long TTS.
+            # PLAY_MUSIC already restored inside Spotify handle_intent.
+            if pred.intent not in ("PLAY_MUSIC", "PAUSE", "STOP"):
+                unduck_delay = tts_s + 1.25
+            else:
+                unduck_delay = 0.0  # already restored (or N/A)
         else:
             # Wrong / OOS: keep the room, tell the UI we didn't understand.
             self.actions.notify("reject", intent=raw.intent)
+            # Also absorb the rest of the user's unfinished phrase.
+            self._mute_for(1.4, "reject_cue_plus_tail")
+            unduck_delay = 1.4
+        try:
+            from .spotify import maybe_restore_after_duck
+            if unduck_delay > 0:
+                maybe_restore_after_duck(verbose=self.debug, delay_s=unduck_delay)
+            elif pred.intent not in ("PLAY_MUSIC", "PAUSE", "STOP"):
+                maybe_restore_after_duck(verbose=self.debug, delay_s=0.0)
+        except Exception:
+            pass
         self._dbg(f"{tag('sleep', 'sleep')} back to wake listening")
         self.state = self.STATE_SLEEP
         self._listen_started = None
         # Drop in-flight VAD so leftover command audio cannot sticky-lock wake.
-        self.vad.reset()
+        self._use_wake_vad()
         return record
 
     @staticmethod
@@ -346,16 +467,42 @@ class VoiceAssistant:
     def _pick_mic(self, sd, device: Optional[int]) -> tuple[int, int, int]:
         """Return (device_index, capture_sr, capture_blocksize) for ~30 ms frames."""
         if device is None:
-            # Prefer first input-capable device; fall back to default input.
-            try:
-                device = int(sd.default.device[0])
-            except Exception:
-                device = None
-            if device is None or device < 0:
-                for i, info in enumerate(sd.query_devices()):
-                    if int(info.get("max_input_channels") or 0) > 0:
-                        device = i
-                        break
+            # Prefer USB PnP / USB Audio over built-in laptop mics when present.
+            prefer_substrings = (
+                "usb pnp", "usb audio", "usb microphone", "usb mic",
+            )
+            skip_substrings = (
+                "macbook", "built-in", "iphone", "continuity", "aggregate",
+            )
+            inputs = []
+            for i, info in enumerate(sd.query_devices()):
+                if int(info.get("max_input_channels") or 0) <= 0:
+                    continue
+                name = str(info.get("name") or "")
+                inputs.append((i, name))
+            chosen = None
+            for i, name in inputs:
+                low = name.lower()
+                if any(s in low for s in skip_substrings):
+                    continue
+                if any(s in low for s in prefer_substrings):
+                    chosen = i
+                    break
+            if chosen is None:
+                try:
+                    chosen = int(sd.default.device[0])
+                except Exception:
+                    chosen = None
+            if chosen is None or chosen < 0:
+                for i, name in inputs:
+                    low = name.lower()
+                    if any(s in low for s in skip_substrings):
+                        continue
+                    chosen = i
+                    break
+            if chosen is None and inputs:
+                chosen = inputs[0][0]
+            device = chosen
         if device is None or device < 0:
             raise RuntimeError(
                 "No input microphone found. Plug in a USB mic and run: "
@@ -386,9 +533,11 @@ class VoiceAssistant:
         print(f"Assistant listening. Log: {self.logger.path}", flush=True)
         print(json.dumps(self.config, indent=2), flush=True)
         dev, capture_sr, capture_block = self._pick_mic(sd, device)
+        mic_name = str(sd.query_devices(dev).get("name") or "?")
         self._dbg(
             f"{tag('ready', 'ready')} sleeping — say '{self.wake_phrase_norm}' "
-            f"(wake thr={self.wake_threshold:.2f}; mic={dev} @ {capture_sr} Hz → {SAMPLE_RATE} Hz)"
+            f"(wake thr={self.wake_threshold:.2f}; "
+            f"mic={dev} {mic_name!r} @ {capture_sr} Hz → {SAMPLE_RATE} Hz)"
         )
         # Callback + queue: stream.read() can block forever on flaky USB mics.
         audio_q: queue.Queue = queue.Queue(maxsize=64)
@@ -426,6 +575,9 @@ class VoiceAssistant:
             ):
                 last_frame_t = time.perf_counter()
                 last_beat_t = last_frame_t
+                last_level_t = last_frame_t
+                level_peak = 0.0
+                level_n = 0
                 while True:
                     try:
                         data = audio_q.get(timeout=1.0)
@@ -448,6 +600,23 @@ class VoiceAssistant:
                     mono = np.asarray(data).reshape(-1)
                     if capture_sr != SAMPLE_RATE:
                         mono = self._resample_linear(mono, capture_sr, SAMPLE_RATE)
+                    # Rolling peak for a 1 Hz "is the mic alive?" line.
+                    level_peak = max(level_peak, float(np.max(np.abs(mono))) if len(mono) else 0.0)
+                    level_n += 1
+                    now = time.perf_counter()
+                    if now - last_level_t >= 1.0:
+                        self._dbg(
+                            f"{tag('mic', 'vad')} level peak={level_peak:.4f} "
+                            f"blocks={level_n}"
+                            + (
+                                " — SILENT (check Mic privacy + Sound Input)"
+                                if level_peak < 0.002
+                                else ""
+                            )
+                        )
+                        level_peak = 0.0
+                        level_n = 0
+                        last_level_t = now
                     frame = self.vad.frame
                     if len(mono) < frame:
                         mono = np.pad(mono, (0, frame - len(mono)))

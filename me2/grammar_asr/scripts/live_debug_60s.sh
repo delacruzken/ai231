@@ -67,14 +67,14 @@ set +e
 : >"$OUT"
 "$PY" -u -m grammar_asr.runtime.assistant \
   --model grammar_asr/runs/intent_hf_v1/command.onnx \
-  --wake-model grammar_asr/runs/wake_kaki_v5/kaki.onnx \
+  --wake-model grammar_asr/runs/wake_kaki_v6/kaki.onnx \
   --reject-gate grammar_asr/runs/intent_hf_v1/reject_gate_live.json \
   --prefer intent_head \
-  --wake-threshold 0.70 \
-  --min-wake-rms 0.030 \
-  --min-wake-peak-rms 0.08 \
-  --max-wake-ms 1400 \
-  --min-cmd-rms 0.040 \
+  --wake-threshold 0.75 \
+  --min-wake-rms 0.025 \
+  --min-wake-peak-rms 0.06 \
+  --max-wake-ms 2000 \
+  --min-cmd-rms 0.030 \
   --wake-phrase kaki \
   --mic --debug \
   --student-id live_debug \

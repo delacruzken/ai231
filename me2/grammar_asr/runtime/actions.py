@@ -59,6 +59,12 @@ class MockDispatcher:
                 f"{tag('action', 'action')} {paint(msg, C.BOLD, C.MAGENTA)}",
                 flush=True,
             )
+        try:
+            from .spotify import maybe_handle_intent
+            maybe_handle_intent(intent, slot, verbose=self.verbose)
+        except Exception as exc:  # pragma: no cover
+            if self.verbose:
+                print(f"{tag('spotify', 'action')} {exc}", flush=True)
         return msg
 
     def notify(self, event_type: str, **payload) -> None:
@@ -79,6 +85,10 @@ class HttpDemoDispatcher:
     def dispatch(self, intent: str, slot: str = "") -> str:
         spoken = self.inner.dispatch(intent, slot)
         self.last = {"intent": intent, "slot": slot, "message": spoken}
+        # Backup mic hold if the browser tab is slow / backgrounded.
+        words = max(1, len(spoken.split()))
+        tts_ms = min(14000, max(2200, int(words * 550 + 1000)))
+        self._post({"type": "audio_busy", "ms": tts_ms, "ts": time.time()})
         self._post({
             "type": "command",
             "intent": intent,
@@ -91,6 +101,12 @@ class HttpDemoDispatcher:
     def notify(self, event_type: str, **payload) -> None:
         body = {"type": event_type, "ts": time.time()}
         body.update(payload)
+        if event_type == "wake":
+            self._post({"type": "audio_busy", "ms": 700, "ts": time.time()})
+        elif event_type == "reject":
+            self._post({"type": "audio_busy", "ms": 650, "ts": time.time()})
+        elif event_type == "listen_end":
+            self._post({"type": "audio_busy", "ms": 500, "ts": time.time()})
         self._post(body)
 
     def _post(self, event: dict) -> None:
@@ -104,7 +120,7 @@ class HttpDemoDispatcher:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=0.35) as resp:
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
                     resp.read()
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 if self.verbose:

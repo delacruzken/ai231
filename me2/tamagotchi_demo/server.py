@@ -138,6 +138,29 @@ class RoomHub:
         self._reset_timer: Optional[threading.Timer] = None
         self._epoch = 0
         self.state: Dict[str, Any] = blank_room()
+        # Browser / assistant set this while speakers play (TTS, chimes).
+        self._audio_busy_until = 0.0
+
+    def set_audio_busy(self, ms: float) -> None:
+        """Hold mic gate closed for at least ``ms`` milliseconds from now."""
+        until = time.time() + max(0.0, float(ms)) / 1000.0
+        with self._lock:
+            self._audio_busy_until = max(self._audio_busy_until, until)
+
+    def clear_audio_busy(self) -> None:
+        with self._lock:
+            self._audio_busy_until = 0.0
+
+    def audio_gate(self) -> Dict[str, Any]:
+        now = time.time()
+        with self._lock:
+            until = float(self._audio_busy_until)
+        return self._gate_dict(now, until)
+
+    @staticmethod
+    def _gate_dict(now: float, until: float) -> Dict[str, Any]:
+        busy = now < until
+        return {"busy": busy, "until": until, "remaining_ms": max(0.0, (until - now) * 1000.0)}
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=64)
@@ -168,6 +191,17 @@ class RoomHub:
         out = {"type": et, "ts": event.get("ts", now)}
 
         with self._lock:
+            if et == "audio_busy":
+                ms = float(event.get("ms") or event.get("duration_ms") or 500)
+                until = time.time() + max(0.0, ms) / 1000.0
+                self._audio_busy_until = max(self._audio_busy_until, until)
+                out.update(self._gate_dict(time.time(), self._audio_busy_until))
+                # No SSE spam for gate ticks.
+                return out
+            if et == "audio_idle":
+                self._audio_busy_until = 0.0
+                out.update(self._gate_dict(time.time(), 0.0))
+                return out
             if et == "wake":
                 self._cancel_reset_timer()
                 keep_lights = bool(self.state.get("lights"))
@@ -303,6 +337,17 @@ class RoomHub:
 HUB = RoomHub()
 
 
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """Browsers often reset EventSource/fetch sockets; don't dump a traceback."""
+
+    def handle_error(self, request, client_address) -> None:  # noqa: ANN001
+        import sys
+        err = sys.exc_info()[1]
+        if isinstance(err, (ConnectionResetError, BrokenPipeError, ConnectionAbortedError)):
+            return
+        super().handle_error(request, client_address)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "KakiTamagotchi/1.0"
 
@@ -336,6 +381,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/state":
             body = json.dumps({"state": HUB.state}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/audio-gate":
+            body = json.dumps(HUB.audio_gate()).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -432,10 +486,11 @@ def main(argv: Optional[List[str]] = None) -> None:
         raise SystemExit("Refusing non-localhost bind (demo is localhost-only).")
     global HUB
     HUB = RoomHub(reset_after=args.reset_after)
-    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
+    httpd = QuietThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Kaki Tamagotchi demo → http://{args.host}:{args.port}/", flush=True)
     print(f"Room resets {args.reset_after:g}s after a command, or immediately on wake.", flush=True)
-    print("Click Enable sound, then run the assistant with --demo-ui", flush=True)
+    print("Open the URL (optional den UI). Voice works in the assistant terminal alone.", flush=True)
+    print("Click the den page once to unlock browser sound (autoplay policy).", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

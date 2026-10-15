@@ -37,8 +37,8 @@
 
     <div id="sound-prompt" class="ac-prompt">
       <div class="ac-prompt-card">
-        <p>The den is a little quiet…<br />Turn on the sound?</p>
-        <button type="button" id="enable-sound" class="ac-yes">Yes!</button>
+        <p>Click anywhere once to enable sound<br />(required by the browser).</p>
+        <button type="button" id="enable-sound" class="ac-yes">Enable sound</button>
       </div>
     </div>
 
@@ -140,15 +140,6 @@
           </g>
         </g>
 
-        <g id="corkboard" transform="translate(178 92)">
-          <rect width="148" height="128" rx="8" fill="#8a5a36" />
-          <rect x="8" y="8" width="132" height="112" rx="4" fill="url(#cork)" />
-          <text x="74" y="28" text-anchor="middle" class="board-title">To-Do</text>
-          <foreignObject x="14" y="36" width="120" height="76">
-            <ul xmlns="http://www.w3.org/1999/xhtml" id="reminder-list" class="reminder-list"></ul>
-          </foreignObject>
-        </g>
-
         <g id="wall-clock" transform="translate(-73 0)">
           <circle cx="386" cy="175" r="51" fill="#9d7a52" />
           <circle cx="386" cy="175" r="44" fill="#fff9e9" />
@@ -163,17 +154,26 @@
         </g>
 
         <g id="thermo">
-          <rect x="915" y="132" width="164" height="72" rx="13" fill="#bcb6a4" />
-          <rect x="910" y="126" width="164" height="65" rx="12" fill="#eee9d7" stroke="#aaa08b" stroke-width="3" />
-          <path d="M927 171H1057" stroke="#b3b7a8" stroke-width="4" />
+          <rect x="915" y="98" width="164" height="72" rx="13" fill="#bcb6a4" />
+          <rect x="910" y="92" width="164" height="65" rx="12" fill="#eee9d7" stroke="#aaa08b" stroke-width="3" />
+          <path d="M927 137H1057" stroke="#b3b7a8" stroke-width="4" />
           <g id="ac-louvers">
-            <path d="M930 185H1055" stroke="#8f9e94" stroke-width="6" stroke-linecap="round" />
+            <path d="M930 151H1055" stroke="#8f9e94" stroke-width="6" stroke-linecap="round" />
           </g>
-          <text x="948" y="154" fill="#95a99c" font-size="18" font-weight="900" id="temp-text">24°</text>
-          <circle id="ac-led" cx="1043" cy="145" r="4" fill="#bdc5b8" />
+          <text x="948" y="120" fill="#95a99c" font-size="18" font-weight="900" id="temp-text">24°</text>
+          <circle id="ac-led" cx="1043" cy="111" r="4" fill="#bdc5b8" />
           <g class="ac-air" fill="none" stroke="#95d2ce" stroke-width="3" stroke-linecap="round">
-            <path d="M947 209q-13 20 0 36M981 209q-13 20 0 36M1018 209q-13 20 0 36" />
+            <path d="M947 175q-13 20 0 36M981 175q-13 20 0 36M1018 175q-13 20 0 36" />
           </g>
+        </g>
+
+        <g id="corkboard" transform="translate(918 214)">
+          <rect width="148" height="128" rx="8" fill="#8a5a36" />
+          <rect x="8" y="8" width="132" height="112" rx="4" fill="url(#cork)" />
+          <text x="74" y="28" text-anchor="middle" class="board-title">To-Do</text>
+          <foreignObject x="14" y="36" width="120" height="76">
+            <ul xmlns="http://www.w3.org/1999/xhtml" id="reminder-list" class="reminder-list"></ul>
+          </foreignObject>
         </g>
 
         <g id="bulb">
