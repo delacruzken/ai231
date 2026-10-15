@@ -65,6 +65,8 @@ class MockDispatcher:
         except Exception as exc:  # pragma: no cover
             if self.verbose:
                 print(f"{tag('spotify', 'action')} {exc}", flush=True)
+        # CALL / MESSAGE real actions run on the Mac den server (Mac-in-the-middle),
+        # not here — so a Pi assistant does not try `open facetime://…`.
         return msg
 
     def notify(self, event_type: str, **payload) -> None:

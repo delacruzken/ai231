@@ -12,6 +12,7 @@ import argparse
 import json
 import mimetypes
 import queue
+import sys
 import threading
 import time
 import urllib.error
@@ -22,7 +23,11 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
+ME2_ROOT = ROOT.parent
 STATIC = ROOT / "static"
+# Allow `python tamagotchi_demo/server.py` from me2/ to import grammar_asr.
+if str(ME2_ROOT) not in sys.path:
+    sys.path.insert(0, str(ME2_ROOT))
 HOST = "127.0.0.1"
 PORT = 8765
 RESET_AFTER_SEC = 20.0
@@ -243,6 +248,17 @@ class RoomHub:
             else:
                 out["state"] = dict(self.state)
 
+        # Mac-in-the-middle: FaceTime / Messages for fixed CALL / MESSAGE.
+        # Runs outside the lock so `open` never stalls the SSE clients.
+        if et == "command":
+            intent_name = str(out.get("intent") or "")
+            if intent_name in ("CALL", "MESSAGE"):
+                threading.Thread(
+                    target=_mac_comms_worker,
+                    args=(intent_name,),
+                    daemon=True,
+                ).start()
+
         self._broadcast(out)
         return out
 
@@ -335,6 +351,14 @@ class RoomHub:
 
 
 HUB = RoomHub()
+
+
+def _mac_comms_worker(intent: str) -> None:
+    try:
+        from grammar_asr.runtime.comms import maybe_handle_intent
+        maybe_handle_intent(intent, verbose=True)
+    except Exception as exc:  # pragma: no cover
+        print(f"[comms] {exc}", flush=True)
 
 
 class QuietThreadingHTTPServer(ThreadingHTTPServer):

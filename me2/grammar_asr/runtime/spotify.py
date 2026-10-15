@@ -15,10 +15,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# Package layout: me2/grammar_asr/runtime/spotify.py → me2/
-# Flat Pi bundle:   ~/me2/spotify.py → ~/me2/
-_here = Path(__file__).resolve().parent
-ME2_ROOT = _here if (_here / "assistant.py").is_file() else _here.parents[2]
+# Package file: me2/grammar_asr/runtime/*.py → parents[2] = me2/
+# Flat Pi file:  ~/me2/*.py → parent = ~/me2/
+_file = Path(__file__).resolve()
+if _file.parent.name == "runtime" and _file.parents[1].name == "grammar_asr":
+    ME2_ROOT = _file.parents[2]
+else:
+    ME2_ROOT = _file.parent
 ENV_PATH = ME2_ROOT / ".env"
 TOKEN_PATH = ME2_ROOT / ".spotify_tokens.json"
 API = "https://api.spotify.com/v1"

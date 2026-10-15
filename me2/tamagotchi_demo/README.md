@@ -42,6 +42,7 @@ DEMO_UI=1 bash grammar_asr/scripts/live_debug_60s.sh
 | Rejected / OOS | Caption “I did not understand that” + low falling error cue; mic muted during the cue |
 | Accepted command | Props update + caption + `speechSynthesis`; mic stays muted until speech finishes |
 | `PLAY_MUSIC` | Den vinyl + optional Spotify shuffle-play on your playlist ([SPOTIFY.md](SPOTIFY.md)) |
+| `CALL` / `MESSAGE` | Den phone/message props + optional FaceTime / Messages on this Mac ([MAC_COMMS.md](MAC_COMMS.md)) |
 | `LIGHT_ON` / `LIGHT_OFF` | Lights stay on until an explicit off command (not cleared by the 20s timer) |
 | `WEATHER` | Opens curtains and shows live Metro Manila weather (Open-Meteo) |
 | `TIME` | Manila clock HUD (`Asia/Manila`) |
