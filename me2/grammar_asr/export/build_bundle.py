@@ -39,8 +39,12 @@ def _rewrite_flat(text: str, *, kind: str) -> str:
         text = text.replace("from .logging_jsonl import", "from logging_jsonl import")
         text = text.replace("from .vad import", "from vad import")
         text = text.replace("from .console import", "from console import")
+        text = text.replace("from .spotify import", "from spotify import")
     elif kind == "actions":
         text = text.replace("from .console import", "from console import")
+        text = text.replace("from .spotify import", "from spotify import")
+    elif kind == "spotify":
+        pass  # ME2_ROOT auto-detects flat vs package layout
     elif kind == "decode":
         text = text.replace("from ..schema import", "from schema import")
         text = text.replace("from ..text import", "from text import")
@@ -58,9 +62,24 @@ def build_bundle(model_onnx: Path, reject_gate: Path | None,
                  out_dir: Path | None = None, wake_onnx: Path | None = None,
                  summary: Path | None = None) -> Path:
     out_dir = out_dir or (BUILD_DIR / "pi_bundle")
+    # Stage into a sibling temp dir so rebuilding into an existing bundle
+    # (which often holds the only local copy of the ONNX files) cannot
+    # delete the source models mid-copy.
+    stage = out_dir.parent / f".{out_dir.name}.staging"
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+    # Preserve existing ONNX / gate when rebuilding from the same folder.
+    preserved: dict[str, Path] = {}
     if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
+        for name in ("model.onnx", "wake.onnx", "reject_gate.json", "summary.json"):
+            src = out_dir / name
+            if src.is_file():
+                dest = stage.parent / f".preserve_{name}"
+                shutil.copy2(src, dest)
+                preserved[name] = dest
+    out_dir_final = out_dir
+    out_dir = stage
 
     # Flat runtime modules (torch-free mel via mel_numpy)
     _copy_text(PACKAGE / "runtime" / "assistant.py", out_dir / "assistant.py",
@@ -69,6 +88,8 @@ def build_bundle(model_onnx: Path, reject_gate: Path | None,
                kind="actions")
     for name in ("vad.py", "logging_jsonl.py", "console.py"):
         shutil.copy2(PACKAGE / "runtime" / name, out_dir / name)
+    _copy_text(PACKAGE / "runtime" / "spotify.py", out_dir / "spotify.py",
+               kind="spotify")
     shutil.copy2(PACKAGE / "mel_numpy.py", out_dir / "mel_numpy.py")
     _copy_text(PACKAGE / "text.py", out_dir / "text.py", kind="text")
     shutil.copy2(PACKAGE / "requirements-rpi.txt", out_dir / "requirements-rpi.txt")
@@ -89,13 +110,24 @@ def build_bundle(model_onnx: Path, reject_gate: Path | None,
             continue
         _copy_text(src, decode_dst / src.name, kind="decode")
 
-    shutil.copy2(model_onnx, out_dir / "model.onnx")
-    if wake_onnx and wake_onnx.exists():
-        shutil.copy2(wake_onnx, out_dir / "wake.onnx")
-    if reject_gate and reject_gate.exists():
-        shutil.copy2(reject_gate, out_dir / "reject_gate.json")
-    if summary and summary.exists():
-        shutil.copy2(summary, out_dir / "summary.json")
+    def _copy_artifact(src: Path | None, name: str, *, required: bool = False) -> bool:
+        if src is not None and Path(src).is_file():
+            shutil.copy2(src, out_dir / name)
+            return True
+        if name in preserved:
+            shutil.copy2(preserved[name], out_dir / name)
+            return True
+        if required:
+            raise FileNotFoundError(
+                f"Missing {name}: pass --model/--wake/--reject-gate or rebuild "
+                f"from a bundle that already contains it"
+            )
+        return False
+
+    _copy_artifact(model_onnx, "model.onnx", required=True)
+    _copy_artifact(wake_onnx, "wake.onnx")
+    _copy_artifact(reject_gate, "reject_gate.json")
+    _copy_artifact(summary, "summary.json")
 
     (out_dir / "run_assistant.sh").write_text(
         "#!/usr/bin/env bash\n"
@@ -128,8 +160,15 @@ def build_bundle(model_onnx: Path, reject_gate: Path | None,
     if (out_dir / "wake.onnx").exists():
         meta["bytes"]["wake.onnx"] = (out_dir / "wake.onnx").stat().st_size
     (out_dir / "bundle.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"Bundle ready: {out_dir}")
-    return out_dir
+
+    # Atomic-ish swap: move stage into place, then drop preserved copies.
+    if out_dir_final.exists():
+        shutil.rmtree(out_dir_final)
+    stage.rename(out_dir_final)
+    for p in preserved.values():
+        p.unlink(missing_ok=True)
+    print(f"Bundle ready: {out_dir_final}")
+    return out_dir_final
 
 
 def main():
