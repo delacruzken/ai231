@@ -122,7 +122,8 @@ class HttpDemoDispatcher:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                # Tunnel + den should answer fast; weather no longer blocks apply().
+                with urllib.request.urlopen(req, timeout=2.5) as resp:
                     resp.read()
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 if self.verbose:

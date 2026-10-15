@@ -62,8 +62,8 @@
             <stop offset="1" stop-color="#7486b2" />
           </linearGradient>
           <radialGradient id="glow">
-            <stop stop-color="#fff6b5" stop-opacity=".45" />
-            <stop offset="1" stop-color="#ffd37e" stop-opacity="0" />
+            <stop stop-color="var(--lamp-glow-a, #fff6b5)" stop-opacity=".55" />
+            <stop offset="1" stop-color="var(--lamp-glow-b, #ffd37e)" stop-opacity="0" />
           </radialGradient>
           <pattern id="plank" width="85" height="50" patternUnits="userSpaceOnUse">
             <path d="M0 0H85M42 0V50" stroke="#775233" stroke-opacity=".22" stroke-width="2" />
@@ -160,7 +160,8 @@
           <g id="ac-louvers">
             <path d="M930 151H1055" stroke="#8f9e94" stroke-width="6" stroke-linecap="round" />
           </g>
-          <text x="948" y="120" fill="#95a99c" font-size="18" font-weight="900" id="temp-text">24°</text>
+          <rect id="ac-display" x="928" y="102" width="92" height="28" rx="4" />
+          <text id="temp-text" class="ac-temp-digits" x="974" y="122" text-anchor="middle">24°</text>
           <circle id="ac-led" cx="1043" cy="111" r="4" fill="#bdc5b8" />
           <g class="ac-air" fill="none" stroke="#95d2ce" stroke-width="3" stroke-linecap="round">
             <path d="M947 175q-13 20 0 36M981 175q-13 20 0 36M1018 175q-13 20 0 36" />
@@ -178,7 +179,7 @@
 
         <g id="bulb">
           <ellipse id="lamp-glow" cx="640" cy="190" rx="210" ry="165" fill="url(#glow)" />
-          <path class="light-beam" d="M590 179L314 690H964L690 179Z" fill="#ffedab" opacity=".22" />
+          <path class="light-beam" d="M590 179L314 690H964L690 179Z" opacity=".22" />
           <path d="M640 45v64" stroke="#74624d" stroke-width="6" />
           <ellipse cx="640" cy="110" rx="16" ry="7" fill="#947251" />
           <path class="bulb-glass" d="M589 124Q582 172 597 195H683Q698 172 691 124Z" fill="#a47c48" stroke="#73572f" stroke-width="4" />
@@ -295,6 +296,21 @@
           <ellipse cx="548" cy="577" rx="20" ry="8" fill="#fff0d1" />
           <path d="M567 572q16-5 10 10-5 5-13 0" fill="none" stroke="#fff0d1" stroke-width="5" />
           <ellipse cx="548" cy="575" rx="15" ry="5" fill="#9f765a" />
+          <!-- Live countdown timer (left) — lit while TIMER is running -->
+          <g id="table-timer" transform="translate(455 552)">
+            <ellipse cx="34" cy="38" rx="32" ry="6" fill="#5a4530" opacity=".25" />
+            <rect class="timer-face" x="0" y="0" width="68" height="36" rx="6" fill="#2a3038" stroke="#1a1e24" stroke-width="2" />
+            <rect x="6" y="7" width="56" height="22" rx="3" fill="#071410" />
+            <text id="table-timer-time" class="timer-digits" x="34" y="23" text-anchor="middle">0:00</text>
+          </g>
+          <!-- Alarm clock (always on the table; lit when ALARM is set) -->
+          <g id="table-alarm" transform="translate(600 552)">
+            <ellipse cx="36" cy="38" rx="34" ry="6" fill="#5a4530" opacity=".25" />
+            <rect class="alarm-face" x="0" y="0" width="72" height="36" rx="6" fill="#2a3038" stroke="#1a1e24" stroke-width="2" />
+            <rect x="6" y="7" width="60" height="22" rx="3" fill="#071410" />
+            <text id="table-alarm-time" class="alarm-digits" x="36" y="23" text-anchor="middle">--:--</text>
+            <text id="table-alarm-ampm" class="alarm-ampm" x="64" y="14" text-anchor="end">AM</text>
+          </g>
         </g>
 
         <g transform="translate(52 0)">
@@ -336,7 +352,7 @@
         </g>
         </g>
 
-        <path id="room-warmth" d="M0 0H1280V720H0Z" fill="#ffe8a2" />
+        <path id="room-warmth" d="M0 0H1280V720H0Z" />
         <rect id="scene-night" x="0" y="0" width="1280" height="720" fill="#23334f" />
       </svg>
 
@@ -350,17 +366,6 @@
         <div>
           <p class="letter-from">A letter arrived!</p>
           <p id="msg-text">New message for you!</p>
-        </div>
-      </div>
-
-      <div class="pockets" aria-label="Active timers and alarms">
-        <div id="timer-chip" class="pocket" hidden>
-          <span class="pocket-icon" aria-hidden="true">⏳</span>
-          <span id="timer-text">timer —</span>
-        </div>
-        <div id="alarm-chip" class="pocket" hidden>
-          <span class="pocket-icon" aria-hidden="true">⏰</span>
-          <span id="alarm-text">alarm —</span>
         </div>
       </div>
 

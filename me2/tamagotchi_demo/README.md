@@ -44,6 +44,11 @@ DEMO_UI=1 bash grammar_asr/scripts/live_debug_60s.sh
 | `PLAY_MUSIC` | Den vinyl + optional Spotify shuffle-play on your playlist ([SPOTIFY.md](SPOTIFY.md)) |
 | `CALL` / `MESSAGE` | Den phone/message props + optional FaceTime / Messages on this Mac ([MAC_COMMS.md](MAC_COMMS.md)) |
 | `LIGHT_ON` / `LIGHT_OFF` | Lights stay on until an explicit off command (not cleared by the 20s timer) |
+| `COLOR` (Red / Blue / Green) | Turns lights on and tints the lamp + room wash; color persists like lights |
+| `BRIGHTNESS` (20 / 60 / 100%) | Scales **lamp** glow / beam only (not the whole den); turns lights on |
+| `TEMPERATURE` | Turns AC on; digital readout on the AC shows the set degrees |
+| `ALARM` | Coffee-table alarm clock (always present) lights up with the set time |
+| `TIMER` | Coffee-table timer (left) lights up and counts down live |
 | `WEATHER` | Opens curtains and shows live Metro Manila weather (Open-Meteo) |
 | `TIME` | Manila clock HUD (`Asia/Manila`) |
 | 20s after a command | Other props return to idle; lights are unchanged (also `POST /event` `{"type":"reset"}` for a full blank) |

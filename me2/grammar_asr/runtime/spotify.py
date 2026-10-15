@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -108,7 +109,13 @@ class SpotifyController:
         self._access: Optional[str] = None
         self._refresh: Optional[str] = None
         self._expires_at = 0.0
+        # Alexa duck: save the pre-duck volume once; never stack ducks.
         self._duck_restore: Optional[int] = None
+        self._duck_epoch: int = 0
+        self._duck_lock = threading.Lock()
+        # Last known *real* listening volume (survives corrupt API reads /
+        # half-restored ducked levels so we don't spiral 100→20→4→1).
+        self._user_volume: Optional[int] = None
         self._load_tokens()
 
     @classmethod
@@ -342,41 +349,130 @@ class SpotifyController:
         )
         return ok
 
+    # Below this, a reported volume is treated as "already ducked / corrupt"
+    # unless the user explicitly lowered volume while not ducked.
+    _MIN_SANE_BASELINE = 40
+
+    def _remember_user_volume(self, percent: int) -> None:
+        p = max(0, min(100, int(percent)))
+        if p >= self._MIN_SANE_BASELINE:
+            self._user_volume = p
+
+    def _resolve_duck_baseline(self, reported_vol: int) -> int:
+        """Pick a baseline that won't spiral down from a half-restored duck."""
+        reported = max(0, min(100, int(reported_vol)))
+        remembered = self._user_volume
+        ducked_like = reported < self._MIN_SANE_BASELINE
+        if remembered is not None and ducked_like:
+            baseline = int(remembered)
+            self._log(
+                f"duck baseline recover: API {reported}% looks ducked; "
+                f"using remembered {baseline}%"
+            )
+            return baseline
+        if ducked_like and remembered is None:
+            # Completely lost — prefer a normal listening level over 4%→1%.
+            baseline = 100
+            self._log(
+                f"duck baseline recover: API {reported}% with no memory; "
+                f"using {baseline}%"
+            )
+            self._user_volume = baseline
+            return baseline
+        self._remember_user_volume(reported)
+        return reported
+
     def adjust_volume(self, delta: int) -> bool:
         pb = self.get_playback()
         vol = pb.get("volume_percent")
         if vol is None:
             vol = 50
-        # If user changes volume while ducked, treat that as the new baseline.
-        if self._duck_restore is not None:
-            self._duck_restore = None
-        return self.set_volume(int(vol) + int(delta), pb.get("device_id"))
+        device_id = pb.get("device_id")
+        with self._duck_lock:
+            if self._duck_restore is not None:
+                # Nudge the *baseline* only — do NOT bump epoch. A pending
+                # unduck must still fire and restore to this new baseline.
+                baseline = max(0, min(100, int(self._duck_restore) + int(delta)))
+                self._duck_restore = baseline
+                self._user_volume = baseline  # explicit voice volume wins
+                ducked = max(1, min(100, int(round(baseline * 0.20))))
+                self._log(
+                    f"volume while ducked: baseline {baseline}%, play {ducked}% "
+                    f"(unduck still epoch {self._duck_epoch})"
+                )
+                target, device = ducked, device_id
+            else:
+                target = max(0, min(100, int(vol) + int(delta)))
+                self._user_volume = target
+                device = device_id
+        return self.set_volume(target, device)
 
     def duck_for_listen(self, fraction: float = 0.20) -> bool:
-        """Alexa-style: while listening, drop volume to ``fraction`` of current."""
+        """Alexa-style: drop to ``fraction`` of the *original* volume (no stacking)."""
         pb = self.get_playback()
         if not pb.get("is_playing"):
             return False
         vol = pb.get("volume_percent")
         if vol is None:
             return False
-        # Already ducked — don't stack.
-        if self._duck_restore is not None:
-            return True
-        ducked = max(1, min(100, int(round(float(vol) * float(fraction)))))
-        if ducked >= int(vol):
-            return False
-        self._duck_restore = int(vol)
-        self._log(f"duck {vol}% → {ducked}% for listen")
-        return self.set_volume(ducked, pb.get("device_id"))
+        device_id = pb.get("device_id")
+        with self._duck_lock:
+            if self._duck_restore is not None:
+                # Still in a duck session — keep / heal baseline; cancel stale unducks.
+                baseline = self._resolve_duck_baseline(int(self._duck_restore))
+                self._duck_restore = baseline
+                self._duck_epoch += 1
+                ducked = max(1, min(100, int(round(baseline * float(fraction)))))
+                self._log(
+                    f"duck keep baseline {baseline}% → {ducked}% "
+                    f"(epoch {self._duck_epoch})"
+                )
+            else:
+                baseline = self._resolve_duck_baseline(int(vol))
+                ducked = max(1, min(100, int(round(baseline * float(fraction)))))
+                if ducked >= baseline:
+                    return False
+                self._duck_restore = baseline
+                self._duck_epoch += 1
+                self._log(
+                    f"duck {baseline}% → {ducked}% for listen "
+                    f"(epoch {self._duck_epoch})"
+                )
+            epoch = self._duck_epoch
+        ok = self.set_volume(ducked, device_id)
+        if not ok:
+            with self._duck_lock:
+                if self._duck_epoch == epoch and self._duck_restore == baseline:
+                    self._duck_restore = None
+        return ok
 
-    def restore_after_duck(self) -> bool:
-        if self._duck_restore is None:
-            return False
-        target = int(self._duck_restore)
-        self._duck_restore = None
-        self._log(f"restore volume → {target}%")
-        return self.set_volume(target)
+    def restore_after_duck(self, expected_epoch: Optional[int] = None) -> bool:
+        """Restore pre-duck volume. Ignore if a newer duck superseded this unduck."""
+        with self._duck_lock:
+            if self._duck_restore is None:
+                return False
+            if expected_epoch is not None and expected_epoch != self._duck_epoch:
+                self._log(
+                    f"skip stale restore "
+                    f"(epoch {expected_epoch}≠{self._duck_epoch})"
+                )
+                return False
+            target = self._resolve_duck_baseline(int(self._duck_restore))
+            self._duck_restore = target
+            epoch = self._duck_epoch
+        self._log(f"restore volume → {target}% (epoch {epoch})")
+        ok = self.set_volume(target)
+        with self._duck_lock:
+            if expected_epoch is not None and expected_epoch != self._duck_epoch:
+                self._log("restore superseded mid-flight; keeping duck state")
+                return False
+            if self._duck_epoch != epoch:
+                return False
+            if ok:
+                self._duck_restore = None
+                self._duck_epoch += 1
+                self._remember_user_volume(target)
+        return ok
 
     def handle_intent(self, intent: str, slot: str = "") -> None:
         intent = (intent or "").upper()
@@ -431,7 +527,6 @@ def maybe_handle_intent(intent: str, slot: str = "", *, verbose: bool = True) ->
             if verbose:
                 print(f"[spotify] error: {exc}", flush=True)
 
-    import threading
     threading.Thread(target=worker, daemon=True).start()
 
 
@@ -448,7 +543,6 @@ def maybe_duck_for_listen(*, verbose: bool = True, fraction: float = 0.20) -> No
             if verbose:
                 print(f"[spotify] duck error: {exc}", flush=True)
 
-    import threading
     threading.Thread(target=worker, daemon=True).start()
 
 
@@ -456,14 +550,16 @@ def maybe_restore_after_duck(*, verbose: bool = True, delay_s: float = 0.0) -> N
     """Restore pre-wake Spotify volume after the listen window / TTS.
 
     Pass ``delay_s`` so volume stays low while the den speaks (weather, etc.).
+    Captures the duck epoch so a later wake cancels this unduck (avoids
+    restoring mid-listen or stacking ducks off a half-restored volume).
     """
     ctrl = _shared_controller(verbose=verbose)
     if ctrl is None or (not ctrl._refresh and not ctrl._access):
         return
-    if ctrl._duck_restore is None:
-        return
-
-    import threading
+    with ctrl._duck_lock:
+        if ctrl._duck_restore is None:
+            return
+        epoch = ctrl._duck_epoch
 
     def worker() -> None:
         try:
@@ -471,11 +567,12 @@ def maybe_restore_after_duck(*, verbose: bool = True, delay_s: float = 0.0) -> N
             if wait:
                 if verbose:
                     print(
-                        f"[spotify] keep ducked {wait:.1f}s for spoken reply",
+                        f"[spotify] keep ducked {wait:.1f}s for spoken reply "
+                        f"(epoch {epoch})",
                         flush=True,
                     )
                 time.sleep(wait)
-            ctrl.restore_after_duck()
+            ctrl.restore_after_duck(expected_epoch=epoch)
         except Exception as exc:  # pragma: no cover
             if verbose:
                 print(f"[spotify] unduck error: {exc}", flush=True)

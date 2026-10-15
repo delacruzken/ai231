@@ -4,9 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import queue
+import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -123,6 +124,9 @@ class VoiceAssistant:
         self.debug = debug
         self.demo_ui = bool(demo_ui)
         self.demo_url = (demo_url or "http://127.0.0.1:8765").rstrip("/")
+        # Cached after first successful mic open — reconnect must not re-probe
+        # (check_input_settings + ALSA close on a dead USB stream can take minutes).
+        self._mic_cache: Optional[Tuple[int, int, int, str]] = None
         self.logger = BenchmarkLogger(student_id=student_id, log_dir=log_dir)
         if demo_ui:
             self.actions = HttpDemoDispatcher(base_url=self.demo_url, verbose=True)
@@ -532,19 +536,102 @@ class VoiceAssistant:
         import sounddevice as sd
         print(f"Assistant listening. Log: {self.logger.path}", flush=True)
         print(json.dumps(self.config, indent=2), flush=True)
-        dev, capture_sr, capture_block = self._pick_mic(sd, device)
-        mic_name = str(sd.query_devices(dev).get("name") or "?")
-        self._dbg(
-            f"{tag('ready', 'ready')} sleeping — say '{self.wake_phrase_norm}' "
-            f"(wake thr={self.wake_threshold:.2f}; "
-            f"mic={dev} {mic_name!r} @ {capture_sr} Hz → {SAMPLE_RATE} Hz)"
-        )
-        # Callback + queue: stream.read() can block forever on flaky USB mics.
-        audio_q: queue.Queue = queue.Queue(maxsize=64)
+        # USB mics on Pi often overflow then silently stop delivering frames.
+        # Outer loop reopens capture instantly (cached device; abort+async close).
+        reconnect_n = 0
+        try:
+            while True:
+                try:
+                    self._run_mic_session(sd, device, reconnect_n)
+                    # Clean stall return — reopen immediately, no backoff.
+                    reconnect_n = max(1, reconnect_n + 1)
+                except KeyboardInterrupt:
+                    raise
+                except Exception as exc:
+                    reconnect_n += 1
+                    self._mic_cache = None  # force re-probe after hard failure
+                    wait = min(2.0, 0.25 * reconnect_n)
+                    print(
+                        f"{tag('mic', 'vad')} mic session error ({exc}); "
+                        f"reopening in {wait:.1f}s…",
+                        flush=True,
+                    )
+                    time.sleep(wait)
+        except KeyboardInterrupt:
+            print("\nStopped.", flush=True)
+        finally:
+            self.logger.close()
+
+    @staticmethod
+    def _close_stream_fast(stream, *, timeout_s: float = 0.35) -> None:
+        """Abort+close without blocking for minutes on a wedged USB/ALSA device."""
+        def _worker() -> None:
+            try:
+                stream.abort()
+            except Exception:
+                try:
+                    stream.stop()
+                except Exception:
+                    pass
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        t.join(timeout=timeout_s)
+        if t.is_alive():
+            print(
+                f"{tag('mic', 'vad')} stream close still hanging — "
+                f"continuing without waiting",
+                flush=True,
+            )
+
+    def _run_mic_session(
+        self, sd, device: Optional[int], reconnect_n: int
+    ) -> None:
+        """One InputStream lifetime. Returns to reopen; raises to retry/backoff."""
+        if self._mic_cache is not None and reconnect_n > 0:
+            dev, capture_sr, capture_block, mic_name = self._mic_cache
+        else:
+            dev, capture_sr, capture_block = self._pick_mic(sd, device)
+            # 3× block = ~90ms — fewer USB overflows on Pi than 30ms frames.
+            capture_block = max(capture_block, capture_block * 3)
+            mic_name = str(sd.query_devices(dev).get("name") or "?")
+            self._mic_cache = (dev, capture_sr, capture_block, mic_name)
+
+        if reconnect_n == 0:
+            self._dbg(
+                f"{tag('ready', 'ready')} sleeping — say '{self.wake_phrase_norm}' "
+                f"(wake thr={self.wake_threshold:.2f}; "
+                f"mic={dev} {mic_name!r} @ {capture_sr} Hz → {SAMPLE_RATE} Hz, "
+                f"block={capture_block})"
+            )
+        else:
+            print(
+                f"{tag('mic', 'vad')} reopening mic={dev} {mic_name!r} "
+                f"@ {capture_sr} Hz (#{reconnect_n})",
+                flush=True,
+            )
+
+        audio_q: queue.Queue = queue.Queue(maxsize=256)
+        overflow_n = 0
 
         def _callback(indata, frames, time_info, status) -> None:  # noqa: ARG001
-            if status and self.debug:
-                print(f"{tag('mic', 'vad')} {status}", flush=True)
+            nonlocal overflow_n
+            if status:
+                overflow_n += 1
+                if self.debug and (overflow_n <= 3 or overflow_n % 50 == 0):
+                    print(
+                        f"{tag('mic', 'vad')} {status} (x{overflow_n})",
+                        flush=True,
+                    )
+                while audio_q.qsize() > 4:
+                    try:
+                        audio_q.get_nowait()
+                    except queue.Empty:
+                        break
             try:
                 audio_q.put_nowait(indata.copy())
             except queue.Full:
@@ -564,74 +651,88 @@ class VoiceAssistant:
                 except queue.Empty:
                     break
 
+        stream = sd.InputStream(
+            samplerate=capture_sr,
+            channels=1,
+            dtype="float32",
+            blocksize=capture_block,
+            device=dev,
+            latency="high",
+            callback=_callback,
+        )
+        stream.start()
+        last_frame_t = time.perf_counter()
+        last_beat_t = last_frame_t
+        last_level_t = last_frame_t
+        level_peak = 0.0
+        level_n = 0
+        tail = np.zeros(0, dtype=np.float32)
         try:
-            with sd.InputStream(
-                samplerate=capture_sr,
-                channels=1,
-                dtype="float32",
-                blocksize=capture_block,
-                device=dev,
-                callback=_callback,
-            ):
-                last_frame_t = time.perf_counter()
-                last_beat_t = last_frame_t
-                last_level_t = last_frame_t
-                level_peak = 0.0
-                level_n = 0
-                while True:
-                    try:
-                        data = audio_q.get(timeout=1.0)
-                        last_frame_t = time.perf_counter()
-                    except queue.Empty:
-                        now = time.perf_counter()
-                        if now - last_frame_t > 3.0:
-                            self._dbg(
-                                f"{tag('mic', 'vad')} no mic frames for "
-                                f"{now - last_frame_t:.1f}s — is the USB mic OK?"
-                            )
-                            last_frame_t = now
-                        if now - last_beat_t > 8.0:
-                            self._dbg(
-                                f"{tag('ready', 'ready')} still sleeping — say "
-                                f"'{self.wake_phrase_norm}'"
-                            )
-                            last_beat_t = now
-                        continue
-                    mono = np.asarray(data).reshape(-1)
-                    if capture_sr != SAMPLE_RATE:
-                        mono = self._resample_linear(mono, capture_sr, SAMPLE_RATE)
-                    # Rolling peak for a 1 Hz "is the mic alive?" line.
-                    level_peak = max(level_peak, float(np.max(np.abs(mono))) if len(mono) else 0.0)
-                    level_n += 1
+            while True:
+                try:
+                    data = audio_q.get(timeout=0.5)
+                    last_frame_t = time.perf_counter()
+                except queue.Empty:
                     now = time.perf_counter()
-                    if now - last_level_t >= 1.0:
-                        self._dbg(
-                            f"{tag('mic', 'vad')} level peak={level_peak:.4f} "
-                            f"blocks={level_n}"
-                            + (
-                                " — SILENT (check Mic privacy + Sound Input)"
-                                if level_peak < 0.002
-                                else ""
-                            )
+                    gap = now - last_frame_t
+                    # Fail fast: ~1.5s of silence from a live USB mic ⇒ reopen.
+                    if gap > 1.5:
+                        print(
+                            f"{tag('mic', 'vad')} no frames {gap:.1f}s — "
+                            f"reopening capture now",
+                            flush=True,
                         )
-                        level_peak = 0.0
-                        level_n = 0
-                        last_level_t = now
-                    frame = self.vad.frame
-                    if len(mono) < frame:
-                        mono = np.pad(mono, (0, frame - len(mono)))
-                    elif len(mono) > frame:
-                        mono = mono[:frame]
-                    utt = self.vad.push(mono)
+                        self.vad.reset()
+                        return
+                    if now - last_beat_t > 8.0:
+                        self._dbg(
+                            f"{tag('ready', 'ready')} still sleeping — say "
+                            f"'{self.wake_phrase_norm}'"
+                        )
+                        last_beat_t = now
+                    continue
+                mono = np.asarray(data, dtype=np.float32).reshape(-1)
+                if capture_sr != SAMPLE_RATE:
+                    mono = self._resample_linear(mono, capture_sr, SAMPLE_RATE)
+                level_peak = max(
+                    level_peak,
+                    float(np.max(np.abs(mono))) if len(mono) else 0.0,
+                )
+                level_n += 1
+                now = time.perf_counter()
+                if now - last_level_t >= 1.0:
+                    self._dbg(
+                        f"{tag('mic', 'vad')} level peak={level_peak:.4f} "
+                        f"blocks={level_n}"
+                        + (
+                            " — SILENT (check Mic privacy + Sound Input)"
+                            if level_peak < 0.002
+                            else ""
+                        )
+                    )
+                    level_peak = 0.0
+                    level_n = 0
+                    last_level_t = now
+                # Feed VAD in exact frame-sized chunks (capture block may be larger).
+                frame = self.vad.frame
+                buf = np.concatenate([tail, mono]) if len(tail) else mono
+                offset = 0
+                while offset + frame <= len(buf):
+                    chunk = buf[offset:offset + frame]
+                    offset += frame
+                    utt = self.vad.push(chunk)
                     if utt is not None and len(utt) > SAMPLE_RATE * 0.2:
                         self.handle_utterance(utt)
-                        # Stale audio captured during decode would false-wake.
                         _drain_q()
                         self.vad.reset()
-        except KeyboardInterrupt:
-            print("\nStopped.", flush=True)
+                        tail = np.zeros(0, dtype=np.float32)
+                        # Drop remainder of this buf — it's pre-decode audio.
+                        offset = len(buf)
+                        break
+                else:
+                    tail = np.asarray(buf[offset:], dtype=np.float32).copy()
         finally:
-            self.logger.close()
+            self._close_stream_fast(stream)
 
     def run_wav(self, paths) -> None:
         import soundfile as sf

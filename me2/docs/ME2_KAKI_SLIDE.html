@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ME2: Kaki — Voice-Controlled Smart Den</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap");
+
+    :root {
+      --ink: #1a1a1a;
+      --muted: #4a4a4a;
+      --line: #c8c8c8;
+      --maroon: #7a1f2b;
+      --cream: #f7f4ef;
+      --card: #ffffff;
+      --ok: #1f6b45;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #2a2a2a;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+    }
+
+    .slide {
+      width: min(1280px, 100vw);
+      min-height: min(720px, 100vh);
+      margin: 12px auto;
+      padding: 28px 36px 24px;
+      background: var(--cream);
+      border: 1px solid #ddd;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+      border-bottom: 3px solid var(--maroon);
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+      color: var(--maroon);
+    }
+    .subtitle {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .meta strong { color: var(--ink); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 16px 20px;
+    }
+
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 12px 14px 14px;
+    }
+    section h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--maroon);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      background: #f3f0ea;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .arrow { color: var(--maroon); font-weight: 700; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 5px 6px;
+      border-bottom: 1px solid #e6e2da;
+    }
+    th {
+      width: 34%;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    td strong { color: var(--ok); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      background: #fbfaf7;
+    }
+    .stat .k {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .stat .v {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: "IBM Plex Mono", monospace;
+      margin-top: 2px;
+    }
+    .stat .s {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    ul.tight {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .note {
+      margin-top: 8px;
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    footer {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    code { font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+
+    @media print {
+      body { background: white; }
+      .slide { margin: 0; width: 100%; min-height: auto; border: none; }
+    }
+  </style>
+</head>
+<body>
+  <article class="slide">
+    <header>
+      <div>
+        <h1>ME2: Kaki — A Voice-Controlled Smart Den</h1>
+        <p class="subtitle">
+          Always-on wake word + intent recognition at the edge · no cloud round-trip for ASR
+        </p>
+      </div>
+      <div class="meta">
+        <div><strong>Shipped runs:</strong> <code>wake_kaki_v6</code> + <code>intent_hf_v1</code></div>
+        <div>Train: UP DGX A100 · Validate / demo: Raspberry Pi 5 + Mac den UI</div>
+        <div>Date: 15 Oct 2026 · Edit authors before presenting</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- MODEL -->
+      <section>
+        <h2>Model</h2>
+        <div class="flow">
+          <span class="pill">Mic 16 kHz</span>
+          <span class="arrow">→</span>
+          <span class="pill">log-mel</span>
+          <span class="arrow">→</span>
+          <span class="pill">Wake MicroWakeNet</span>
+          <span class="arrow">→</span>
+          <span class="pill">IntentCRNN</span>
+          <span class="arrow">→</span>
+          <span class="pill">RejectGate</span>
+          <span class="arrow">→</span>
+          <span class="pill">Den / Spotify / FaceTime</span>
+        </div>
+        <table>
+          <tr>
+            <th>Command encoder</th>
+            <td>IntentCRNN · 4 DS-conv blocks · BiGRU 96×2 · attn pool · intent + slot heads</td>
+          </tr>
+          <tr>
+            <th>Heads</th>
+            <td>Intent (19 + OOS) · 6 slotted intents × 3 values · prefer <code>intent_head</code></td>
+          </tr>
+          <tr>
+            <th>Parameters</th>
+            <td>
+              <strong>0.515 M</strong> command · <strong>2.08 MB</strong> fp32 ONNX
+              (<code>command.onnx</code>)<br />
+              Int8 export: 1.46 MB · Wake: <strong>1.1 K</strong> params · <strong>7.3 KB</strong> ONNX
+            </td>
+          </tr>
+          <tr>
+            <th>Wake word</th>
+            <td><code>kaki</code> · MicroWakeNet · live thr <strong>0.70</strong> (val thr 0.637)</td>
+          </tr>
+          <tr>
+            <th>Runtime</th>
+            <td>onnxruntime CPU · Pi 5 USB mic · den UI on Mac via SSH tunnel</td>
+          </tr>
+        </table>
+      </section>
+
+      <!-- VALIDATION -->
+      <section>
+        <h2>Validation (held-out test + wake val)</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="k">Test intent / command</div>
+            <div class="v">94.2% / 93.5%</div>
+            <div class="s">n = 4,443 · HF gold test</div>
+          </div>
+          <div class="stat">
+            <div class="k">Real speech (honest)</div>
+            <div class="v">72.7% / 70.1%</div>
+            <div class="s">n = 824 real · synth 99.1% / 98.8%</div>
+          </div>
+          <div class="stat">
+            <div class="k">Wake val (kaki v6)</div>
+            <div class="v">98.5% bal</div>
+            <div class="s">recall 100% · FAR 3.0% · thr 0.637</div>
+          </div>
+          <div class="stat">
+            <div class="k">Cmd FAR / FRR (test)</div>
+            <div class="v">38.2% / 1.7%</div>
+            <div class="s">FAR on OOS · live Pi gate tightened</div>
+          </div>
+        </div>
+        <p class="note">
+          Live Pi demo uses <code>reject_gate_pi.json</code> (min conf 0.50 + per-intent floors for
+          TEMPERATURE / WEATHER / COLOR / …). End-to-end den actions verified on-device; formal
+          Pi latency / FA-per-hour bench not in this table (see footnotes).
+        </p>
+      </section>
+
+      <!-- TRAINING -->
+      <section>
+        <h2>Training on A100</h2>
+        <table>
+          <tr>
+            <th>Cluster</th>
+            <td>UP DGX · CUDA · config <code>intent_hf_v1.yaml</code> · seed <strong>1</strong> shipped</td>
+          </tr>
+          <tr>
+            <th>Objective</th>
+            <td>
+              Intent CE + slot CE + confusable-pair penalty (0.1) + label smoothing 0.05.
+              <strong>No CTC</strong> · no distillation in this run.
+            </td>
+          </tr>
+          <tr>
+            <th>Optim</th>
+            <td>Adam · lr 1e-3 · batch 128 · 5-epoch warmup · AMP · 80 epochs · <strong>best @ 40</strong></td>
+          </tr>
+          <tr>
+            <th>Scale</th>
+            <td>Train ~10.8k utts · val 953 · test 4,443 · ~12 min epoch-sum wall (log)</td>
+          </tr>
+          <tr>
+            <th>Wake train</th>
+            <td>
+              50 epochs · seed 5 · 78/20 pos · 537/134 neg · USB PnP hard negs ·
+              bal.acc <strong>98.5%</strong>
+            </td>
+          </tr>
+        </table>
+      </section>
+
+      <!-- DATASET -->
+      <section>
+        <h2>Dataset</h2>
+        <table>
+          <tr>
+            <th>Source</th>
+            <td>
+              Class master set · Hugging Face
+              <code>airimonda/ai231-me2-voice-commands</code>
+              (+ local gold / USB wake clips)
+            </td>
+          </tr>
+          <tr>
+            <th>Command labels</th>
+            <td><strong>19</strong> intents + OOS · <strong>93</strong> variations · 6 slots × 3 values</td>
+          </tr>
+          <tr>
+            <th>Test mix</th>
+            <td>
+              Synth ~81% of test (scores ~99%) · <strong>real ~19%</strong> (scores ~70%) —
+              report real as the honest metric
+            </td>
+          </tr>
+          <tr>
+            <th>Wake audio</th>
+            <td>
+              98 <code>kaki</code> positives (incl. ~20 USB) · hard negatives (USB + ambient + confusable)
+            </td>
+          </tr>
+          <tr>
+            <th>Demo stack</th>
+            <td>
+              Pi assistant · Mac den (lights / color / AC / alarm / timer) · Spotify duck ·
+              FaceTime / Messages Mac-middle
+            </td>
+          </tr>
+        </table>
+        <p class="note">
+          Fixture audit: all 93 variations present in train/test. Schema fingerprint matches class CSV.
+        </p>
+      </section>
+    </div>
+
+    <footer>
+      <span>
+        Artifacts: <code>runs/intent_hf_v1/</code> · <code>runs/wake_kaki_v6/</code> ·
+        Pi bundle <code>grammar_asr/build/pi_bundle/</code>
+      </span>
+      <span>Open this file in a browser · Print / PDF for slides</span>
+    </footer>
+  </article>
+</body>
+</html>
