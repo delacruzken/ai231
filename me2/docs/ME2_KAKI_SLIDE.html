@@ -293,19 +293,19 @@
         <div class="stage stage-wake">
           <span class="stage-num">3 · Detector</span>
           <span class="stage-name">Wake</span>
-          <span class="stage-detail">MicroWakeNet · “kaki”</span>
+          <span class="stage-detail">tiny CNN · “kaki”</span>
         </div>
         <span class="flow-join join-intent" title="command after wake">cmd →</span>
         <div class="stage stage-intent">
           <span class="stage-num">4 · Understand</span>
           <span class="stage-name">Intent</span>
-          <span class="stage-detail">IntentCRNN</span>
+          <span class="stage-detail">CRNN</span>
         </div>
         <span class="flow-join join-gate" title="confidence / margin filter">gate →</span>
         <div class="stage stage-gate">
           <span class="stage-num">5 · Filter</span>
           <span class="stage-name">Reject</span>
-          <span class="stage-detail">RejectGate</span>
+          <span class="stage-detail">confidence gate</span>
         </div>
         <span class="flow-join join-act" title="actuators">act →</span>
         <div class="stage stage-act">
@@ -323,7 +323,7 @@
         <table>
           <tr>
             <th>Command encoder</th>
-            <td>IntentCRNN · 4 DS-conv blocks · BiGRU 96×2 · attn pool · intent + slot heads</td>
+            <td>CRNN · 4 DS-conv blocks · BiGRU 96×2 · attn pool · intent + slot heads</td>
           </tr>
           <tr>
             <th>Heads</th>
@@ -339,7 +339,7 @@
           </tr>
           <tr>
             <th>Wake word</th>
-            <td><code>kaki</code> · MicroWakeNet · live thr <strong>0.70</strong> (val thr 0.637)</td>
+            <td><code>kaki</code> · tiny depthwise CNN (keyword spotting) · live thr <strong>0.70</strong> (val thr 0.637)</td>
           </tr>
           <tr>
             <th>Runtime</th>
