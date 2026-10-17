@@ -295,13 +295,22 @@ class RoomHub:
         return out
 
     def _refresh_weather_async(self) -> None:
-        """Force-refresh Manila weather without blocking POST /event."""
+        """Force-refresh Manila weather without blocking POST /event.
+
+        Broadcasts a silent state update only — never ``type: command``,
+        or the den would speak the weather a second time.
+        """
         try:
             wx = fetch_manila_weather(force=True)
         except Exception as exc:  # pragma: no cover
             print(f"[weather] refresh failed: {exc}", flush=True)
             return
         with self._lock:
+            prev = (
+                self.state.get("weather_spoken"),
+                self.state.get("live_weather"),
+                self.state.get("weather_label"),
+            )
             self.state["weather"] = wx["key"]
             self.state["live_weather"] = wx["key"]
             self.state["weather_label"] = wx["label"]
@@ -310,11 +319,11 @@ class RoomHub:
             self.state["caption"] = wx["spoken"]
             self.state["spoken"] = wx["spoken"]
             snap = dict(self.state)
+            changed = prev != (wx["spoken"], wx["key"], wx["label"])
+        if not changed:
+            return
         self._broadcast({
-            "type": "command",
-            "intent": "WEATHER",
-            "slot": "",
-            "spoken": wx["spoken"],
+            "type": "weather_update",
             "ts": time.time(),
             "state": snap,
         })

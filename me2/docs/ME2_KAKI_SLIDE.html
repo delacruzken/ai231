@@ -86,25 +86,111 @@
       padding-bottom: 6px;
     }
 
-    .flow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      font-size: 12px;
-      margin-bottom: 10px;
-      line-height: 1.35;
-    }
-    .pill {
-      display: inline-block;
-      padding: 4px 8px;
+    .pipeline {
+      background: var(--card);
       border: 1px solid var(--line);
-      background: #f3f0ea;
+      padding: 10px 12px 12px;
+      margin-bottom: 16px;
+    }
+    .pipeline h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--maroon);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns:
+        minmax(0, 1fr) auto
+        minmax(0, 1fr) auto
+        minmax(0, 1fr) auto
+        minmax(0, 1fr) auto
+        minmax(0, 1fr) auto
+        minmax(0, 1fr);
+      align-items: stretch;
+      gap: 0 4px;
+      width: 100%;
+    }
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border: 1.5px solid var(--line);
+      background: #fbfaf7;
+      padding: 8px 6px;
+      min-width: 0;
+      min-height: 72px;
+    }
+    .stage-num {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .stage-name {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .stage-detail {
       font-family: "IBM Plex Mono", monospace;
       font-size: 11px;
       font-weight: 500;
+      line-height: 1.3;
+      color: var(--ink);
     }
-    .arrow { color: var(--maroon); font-weight: 700; }
+    .flow-join {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 2px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      align-self: center;
+    }
+
+    /* Per-layer colors (sense → actuate) */
+    .stage-sense  { border-color: #5b7c99; background: #eef4f8; }
+    .stage-sense  .stage-num,
+    .stage-sense  .stage-name { color: #3a5a75; }
+    .join-feat    { color: #3a5a75; }
+
+    .stage-feat   { border-color: #6a7a4a; background: #f3f6ea; }
+    .stage-feat   .stage-num,
+    .stage-feat   .stage-name { color: #4a5a30; }
+    .join-wake    { color: #4a5a30; }
+
+    .stage-wake   { border-color: #8a5a2a; background: #f8f1e8; }
+    .stage-wake   .stage-num,
+    .stage-wake   .stage-name { color: #6a4018; }
+    .join-intent  { color: #6a4018; }
+
+    .stage-intent { border-color: #7a1f2b; background: #f8eeee; }
+    .stage-intent .stage-num,
+    .stage-intent .stage-name { color: #7a1f2b; }
+    .join-gate    { color: #7a1f2b; }
+
+    .stage-gate   { border-color: #5a4a7a; background: #f2eef8; }
+    .stage-gate   .stage-num,
+    .stage-gate   .stage-name { color: #4a3a6a; }
+    .join-act     { color: #4a3a6a; }
+
+    .stage-act    { border-color: #1f6b45; background: #eef6f1; }
+    .stage-act    .stage-num,
+    .stage-act    .stage-name { color: #1f6b45; }
 
     table {
       width: 100%;
@@ -164,16 +250,6 @@
       color: var(--muted);
       line-height: 1.4;
     }
-    footer {
-      margin-top: 14px;
-      font-size: 11px;
-      color: var(--muted);
-      border-top: 1px solid var(--line);
-      padding-top: 8px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-    }
     code { font-family: "IBM Plex Mono", monospace; font-size: 11px; }
 
     @media print {
@@ -192,29 +268,58 @@
         </p>
       </div>
       <div class="meta">
+        <div><strong>Author:</strong> Ken Harvey Dela Cruz</div>
         <div><strong>Shipped runs:</strong> <code>wake_kaki_v6</code> + <code>intent_hf_v1</code></div>
         <div>Train: UP DGX A100 · Validate / demo: Raspberry Pi 5 + Mac den UI</div>
-        <div>Date: 15 Oct 2026 · Edit authors before presenting</div>
+        <div>Date: October 17, 2026</div>
       </div>
     </header>
+
+    <section class="pipeline">
+      <h2>Inference pipeline</h2>
+      <div class="flow" aria-label="Inference pipeline by layer">
+        <div class="stage stage-sense">
+          <span class="stage-num">1 · Input</span>
+          <span class="stage-name">Sense</span>
+          <span class="stage-detail">Mic 16 kHz</span>
+        </div>
+        <span class="flow-join join-feat" title="feature extraction">feat →</span>
+        <div class="stage stage-feat">
+          <span class="stage-num">2 · Features</span>
+          <span class="stage-name">Featurize</span>
+          <span class="stage-detail">log-mel</span>
+        </div>
+        <span class="flow-join join-wake" title="always-on wake detect">wake →</span>
+        <div class="stage stage-wake">
+          <span class="stage-num">3 · Detector</span>
+          <span class="stage-name">Wake</span>
+          <span class="stage-detail">MicroWakeNet · “kaki”</span>
+        </div>
+        <span class="flow-join join-intent" title="command after wake">cmd →</span>
+        <div class="stage stage-intent">
+          <span class="stage-num">4 · Understand</span>
+          <span class="stage-name">Intent</span>
+          <span class="stage-detail">IntentCRNN</span>
+        </div>
+        <span class="flow-join join-gate" title="confidence / margin filter">gate →</span>
+        <div class="stage stage-gate">
+          <span class="stage-num">5 · Filter</span>
+          <span class="stage-name">Reject</span>
+          <span class="stage-detail">RejectGate</span>
+        </div>
+        <span class="flow-join join-act" title="actuators">act →</span>
+        <div class="stage stage-act">
+          <span class="stage-num">6 · Output</span>
+          <span class="stage-name">Actuate</span>
+          <span class="stage-detail">Den · Spotify · FaceTime</span>
+        </div>
+      </div>
+    </section>
 
     <div class="grid">
       <!-- MODEL -->
       <section>
         <h2>Model</h2>
-        <div class="flow">
-          <span class="pill">Mic 16 kHz</span>
-          <span class="arrow">→</span>
-          <span class="pill">log-mel</span>
-          <span class="arrow">→</span>
-          <span class="pill">Wake MicroWakeNet</span>
-          <span class="arrow">→</span>
-          <span class="pill">IntentCRNN</span>
-          <span class="arrow">→</span>
-          <span class="pill">RejectGate</span>
-          <span class="arrow">→</span>
-          <span class="pill">Den / Spotify / FaceTime</span>
-        </div>
         <table>
           <tr>
             <th>Command encoder</th>
@@ -351,13 +456,6 @@
       </section>
     </div>
 
-    <footer>
-      <span>
-        Artifacts: <code>runs/intent_hf_v1/</code> · <code>runs/wake_kaki_v6/</code> ·
-        Pi bundle <code>grammar_asr/build/pi_bundle/</code>
-      </span>
-      <span>Open this file in a browser · Print / PDF for slides</span>
-    </footer>
   </article>
 </body>
 </html>
