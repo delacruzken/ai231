@@ -22,11 +22,21 @@ class VADConfig:
 class EnergyVAD:
     def __init__(self, cfg: Optional[VADConfig] = None):
         self.cfg = cfg or VADConfig()
+        self._apply_cfg_lengths()
+        self.reset()
+
+    def _apply_cfg_lengths(self) -> None:
         self.frame = int(self.cfg.sample_rate * self.cfg.frame_ms / 1000)
         self.start_frames = max(1, self.cfg.start_ms // self.cfg.frame_ms)
         self.end_frames = max(1, self.cfg.end_ms // self.cfg.frame_ms)
         self.max_frames = max(1, self.cfg.max_utterance_ms // self.cfg.frame_ms)
-        self.reset()
+
+    def configure(self, **kwargs) -> None:
+        """Update endpointing knobs (e.g. longer end_ms while listening for commands)."""
+        for key, value in kwargs.items():
+            if hasattr(self.cfg, key):
+                setattr(self.cfg, key, value)
+        self._apply_cfg_lengths()
 
     def reset(self):
         self.speaking = False

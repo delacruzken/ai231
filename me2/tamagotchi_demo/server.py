@@ -12,6 +12,7 @@ import argparse
 import json
 import mimetypes
 import queue
+import sys
 import threading
 import time
 import urllib.error
@@ -22,7 +23,11 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
+ME2_ROOT = ROOT.parent
 STATIC = ROOT / "static"
+# Allow `python tamagotchi_demo/server.py` from me2/ to import grammar_asr.
+if str(ME2_ROOT) not in sys.path:
+    sys.path.insert(0, str(ME2_ROOT))
 HOST = "127.0.0.1"
 PORT = 8765
 RESET_AFTER_SEC = 20.0
@@ -96,10 +101,30 @@ def fetch_manila_weather(*, force: bool = False) -> Dict[str, Any]:
         return dict(cached or _WX_FALLBACK)
 
 
-def blank_room(*, listening: bool = False, lights: Optional[bool] = None) -> Dict[str, Any]:
+def normalize_light_color(slot: str) -> str:
+    """Map COLOR slots to den keys: red / blue / green / warm."""
+    s = (slot or "").strip().lower()
+    for name in ("red", "blue", "green"):
+        if name in s:
+            return name
+    if "warm" in s or "white" in s or "default" in s:
+        return "warm"
+    return "warm"
+
+
+def blank_room(
+    *,
+    listening: bool = False,
+    lights: Optional[bool] = None,
+    color: Optional[str] = None,
+    brightness: Optional[int] = None,
+    ac: Optional[bool] = None,
+    temperature: Optional[int] = None,
+    alarm: Optional[str] = None,
+) -> Dict[str, Any]:
     """Command props off: no music/phone/reminders/time/weather HUD.
 
-    Lights stay as given — they only change on LIGHT_ON / LIGHT_OFF.
+    Lights / color / brightness / AC / alarm persist when passed through.
     """
     wx = fetch_manila_weather()
     return {
@@ -114,17 +139,29 @@ def blank_room(*, listening: bool = False, lights: Optional[bool] = None) -> Dic
         "weather_label": wx["label"],
         "weather_spoken": wx["spoken"],
         "timer": "",
-        "alarm": "",
-        "brightness": 60,
-        "color": "warm",
-        "temperature": 24,
-        "ac": False,
+        "alarm": "" if alarm is None else str(alarm),
+        "brightness": 60 if brightness is None else max(0, min(100, int(brightness))),
+        "color": "warm" if color is None else normalize_light_color(str(color)),
+        "temperature": 24 if temperature is None else int(temperature),
+        "ac": False if ac is None else bool(ac),
         "reminders": [],
         "listening": listening,
         "caption": "Listening…" if listening else "",
         "spoken": "",
         "show_time": False,
         "curtains_open": False,
+    }
+
+
+def _persist_room_props(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Props that survive wake / idle reset (like real smart-home state)."""
+    return {
+        "lights": bool(state.get("lights")),
+        "color": state.get("color") or "warm",
+        "brightness": int(state.get("brightness") or 60),
+        "ac": bool(state.get("ac")),
+        "temperature": int(state.get("temperature") or 24),
+        "alarm": str(state.get("alarm") or ""),
     }
 
 
@@ -138,6 +175,29 @@ class RoomHub:
         self._reset_timer: Optional[threading.Timer] = None
         self._epoch = 0
         self.state: Dict[str, Any] = blank_room()
+        # Browser / assistant set this while speakers play (TTS, chimes).
+        self._audio_busy_until = 0.0
+
+    def set_audio_busy(self, ms: float) -> None:
+        """Hold mic gate closed for at least ``ms`` milliseconds from now."""
+        until = time.time() + max(0.0, float(ms)) / 1000.0
+        with self._lock:
+            self._audio_busy_until = max(self._audio_busy_until, until)
+
+    def clear_audio_busy(self) -> None:
+        with self._lock:
+            self._audio_busy_until = 0.0
+
+    def audio_gate(self) -> Dict[str, Any]:
+        now = time.time()
+        with self._lock:
+            until = float(self._audio_busy_until)
+        return self._gate_dict(now, until)
+
+    @staticmethod
+    def _gate_dict(now: float, until: float) -> Dict[str, Any]:
+        busy = now < until
+        return {"busy": busy, "until": until, "remaining_ms": max(0.0, (until - now) * 1000.0)}
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=64)
@@ -168,10 +228,21 @@ class RoomHub:
         out = {"type": et, "ts": event.get("ts", now)}
 
         with self._lock:
+            if et == "audio_busy":
+                ms = float(event.get("ms") or event.get("duration_ms") or 500)
+                until = time.time() + max(0.0, ms) / 1000.0
+                self._audio_busy_until = max(self._audio_busy_until, until)
+                out.update(self._gate_dict(time.time(), self._audio_busy_until))
+                # No SSE spam for gate ticks.
+                return out
+            if et == "audio_idle":
+                self._audio_busy_until = 0.0
+                out.update(self._gate_dict(time.time(), 0.0))
+                return out
             if et == "wake":
                 self._cancel_reset_timer()
-                keep_lights = bool(self.state.get("lights"))
-                self.state = blank_room(listening=True, lights=keep_lights)
+                keep = _persist_room_props(self.state)
+                self.state = blank_room(listening=True, **keep)
                 self._schedule_reset()
                 out.update({"listening": True, "state": dict(self.state)})
             elif et == "reset":
@@ -209,8 +280,53 @@ class RoomHub:
             else:
                 out["state"] = dict(self.state)
 
+        # Mac-in-the-middle: FaceTime / Messages for fixed CALL / MESSAGE.
+        # Runs outside the lock so `open` never stalls the SSE clients.
+        if et == "command":
+            intent_name = str(out.get("intent") or "")
+            if intent_name in ("CALL", "MESSAGE"):
+                threading.Thread(
+                    target=_mac_comms_worker,
+                    args=(intent_name,),
+                    daemon=True,
+                ).start()
+
         self._broadcast(out)
         return out
+
+    def _refresh_weather_async(self) -> None:
+        """Force-refresh Manila weather without blocking POST /event.
+
+        Broadcasts a silent state update only — never ``type: command``,
+        or the den would speak the weather a second time.
+        """
+        try:
+            wx = fetch_manila_weather(force=True)
+        except Exception as exc:  # pragma: no cover
+            print(f"[weather] refresh failed: {exc}", flush=True)
+            return
+        with self._lock:
+            prev = (
+                self.state.get("weather_spoken"),
+                self.state.get("live_weather"),
+                self.state.get("weather_label"),
+            )
+            self.state["weather"] = wx["key"]
+            self.state["live_weather"] = wx["key"]
+            self.state["weather_label"] = wx["label"]
+            self.state["weather_spoken"] = wx["spoken"]
+            self.state["curtains_open"] = True
+            self.state["caption"] = wx["spoken"]
+            self.state["spoken"] = wx["spoken"]
+            snap = dict(self.state)
+            changed = prev != (wx["spoken"], wx["key"], wx["label"])
+        if not changed:
+            return
+        self._broadcast({
+            "type": "weather_update",
+            "ts": time.time(),
+            "state": snap,
+        })
 
     def _cancel_reset_timer(self) -> None:
         self._epoch += 1
@@ -234,8 +350,8 @@ class RoomHub:
             if epoch != self._epoch:
                 return
             self._reset_timer = None
-            keep_lights = bool(self.state.get("lights"))
-            self.state = blank_room(lights=keep_lights)
+            keep = _persist_room_props(self.state)
+            self.state = blank_room(**keep)
             snap = dict(self.state)
         self._broadcast({"type": "reset", "ts": time.time(), "state": snap})
 
@@ -264,7 +380,9 @@ class RoomHub:
         elif intent == "MESSAGE":
             s["message"] = "New message for you!"
         elif intent == "WEATHER":
-            wx = fetch_manila_weather(force=True)
+            # Use cache (or fast fallback) so POST /event returns immediately.
+            # A background refresh updates the den if Open-Meteo is slow.
+            wx = fetch_manila_weather(force=False)
             s["weather"] = wx["key"]
             s["live_weather"] = wx["key"]
             s["weather_label"] = wx["label"]
@@ -272,6 +390,9 @@ class RoomHub:
             s["curtains_open"] = True
             s["caption"] = wx["spoken"]
             s["spoken"] = wx["spoken"]
+            threading.Thread(
+                target=self._refresh_weather_async, daemon=True
+            ).start()
         elif intent == "TIME":
             s["show_time"] = True
         elif intent == "TIMER":
@@ -279,17 +400,21 @@ class RoomHub:
         elif intent == "ALARM":
             s["alarm"] = slot or "8:00 AM"
         elif intent == "BRIGHTNESS":
-            # slot like "60 percent"
+            # slot like "60 percent" — scales the lamp wash, turns lights on
             digits = "".join(c for c in slot if c.isdigit())
             if digits:
                 s["brightness"] = max(0, min(100, int(digits)))
+            s["lights"] = True
         elif intent == "COLOR":
-            s["color"] = (slot or "warm").lower()
+            s["color"] = normalize_light_color(slot)
+            s["lights"] = True  # color is only visible when the lamp is on
         elif intent == "TEMPERATURE":
             s["ac"] = True
             digits = "".join(c for c in slot if c.isdigit())
             if digits:
                 s["temperature"] = int(digits)
+            elif not s.get("temperature"):
+                s["temperature"] = 24
         elif intent == "LIST_REMINDERS":
             if not s["reminders"]:
                 s["reminders"] = ["Walk the dog", "Water plants"]
@@ -301,6 +426,25 @@ class RoomHub:
 
 
 HUB = RoomHub()
+
+
+def _mac_comms_worker(intent: str) -> None:
+    try:
+        from grammar_asr.runtime.comms import maybe_handle_intent
+        maybe_handle_intent(intent, verbose=True)
+    except Exception as exc:  # pragma: no cover
+        print(f"[comms] {exc}", flush=True)
+
+
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """Browsers often reset EventSource/fetch sockets; don't dump a traceback."""
+
+    def handle_error(self, request, client_address) -> None:  # noqa: ANN001
+        import sys
+        err = sys.exc_info()[1]
+        if isinstance(err, (ConnectionResetError, BrokenPipeError, ConnectionAbortedError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -336,6 +480,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/state":
             body = json.dumps({"state": HUB.state}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/audio-gate":
+            body = json.dumps(HUB.audio_gate()).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -432,10 +585,11 @@ def main(argv: Optional[List[str]] = None) -> None:
         raise SystemExit("Refusing non-localhost bind (demo is localhost-only).")
     global HUB
     HUB = RoomHub(reset_after=args.reset_after)
-    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
+    httpd = QuietThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Kaki Tamagotchi demo → http://{args.host}:{args.port}/", flush=True)
     print(f"Room resets {args.reset_after:g}s after a command, or immediately on wake.", flush=True)
-    print("Click Enable sound, then run the assistant with --demo-ui", flush=True)
+    print("Open the URL (optional den UI). Voice works in the assistant terminal alone.", flush=True)
+    print("Click the den page once to unlock browser sound (autoplay policy).", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
