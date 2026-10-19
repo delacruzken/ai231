@@ -1,0 +1,49 @@
+{
+  "tag": "ctc_hf_s0",
+  "model": "ctc_low",
+  "params": 1930396,
+  "best_epoch": 34,
+  "best_val_command_acc": 0.7901840490797546,
+  "val": {
+    "intent_accuracy": 0.6834355828220859,
+    "command_accuracy": 0.6834355828220859,
+    "false_accept_rate": 0.10638297872340426,
+    "false_reject_rate": 0.3245492371705964,
+    "real": {
+      "n": 126,
+      "intent_accuracy": 0.24603174603174602,
+      "command_accuracy": 0.24603174603174602
+    },
+    "synthetic": {
+      "n": 689,
+      "intent_accuracy": 0.7634252539912917,
+      "command_accuracy": 0.7634252539912917
+    },
+    "n": 815
+  },
+  "test": {
+    "intent_accuracy": 0.6704929101958136,
+    "command_accuracy": 0.6704929101958136,
+    "false_accept_rate": 0.0,
+    "false_reject_rate": 0.32264712617357455,
+    "real": {
+      "n": 824,
+      "intent_accuracy": 0.23179611650485438,
+      "command_accuracy": 0.23179611650485438
+    },
+    "synthetic": {
+      "n": 3619,
+      "intent_accuracy": 0.7703785576126002,
+      "command_accuracy": 0.7703785576126002
+    },
+    "n": 4443
+  },
+  "reject_gate": {
+    "min_score": -1000000000.0,
+    "min_margin": 0.0,
+    "min_confidence": 0.6672,
+    "intent_thresholds": {}
+  },
+  "git_commit": "unknown",
+  "dataset_fingerprint": "b247f1ab330704974d7c42ea213c080614abe31aaceccdefdf7613093bb29db5"
+}

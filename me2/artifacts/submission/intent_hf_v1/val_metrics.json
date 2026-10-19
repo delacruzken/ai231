@@ -1,0 +1,122 @@
+{
+  "n": 953,
+  "intent_accuracy": 0.9160545645330536,
+  "command_accuracy": 0.9108079748163693,
+  "false_accept_rate": 0.09830508474576272,
+  "false_reject_rate": 0.02127659574468085,
+  "n_oos": 295,
+  "n_in_scope": 658,
+  "per_intent": {
+    "ALARM": {
+      "correct": 49,
+      "total": 50,
+      "acc": 0.98
+    },
+    "BRIGHTNESS": {
+      "correct": 61,
+      "total": 69,
+      "acc": 0.8840579710144928
+    },
+    "CALL": {
+      "correct": 18,
+      "total": 22,
+      "acc": 0.8181818181818182
+    },
+    "COLOR": {
+      "correct": 88,
+      "total": 101,
+      "acc": 0.8712871287128713
+    },
+    "CREATE_REMINDER": {
+      "correct": 62,
+      "total": 62,
+      "acc": 1.0
+    },
+    "LIGHT_OFF": {
+      "correct": 20,
+      "total": 23,
+      "acc": 0.8695652173913043
+    },
+    "LIGHT_ON": {
+      "correct": 12,
+      "total": 17,
+      "acc": 0.7058823529411765
+    },
+    "LIST_REMINDERS": {
+      "correct": 15,
+      "total": 16,
+      "acc": 0.9375
+    },
+    "MESSAGE": {
+      "correct": 21,
+      "total": 21,
+      "acc": 1.0
+    },
+    "NEXT": {
+      "correct": 21,
+      "total": 21,
+      "acc": 1.0
+    },
+    "PAUSE": {
+      "correct": 20,
+      "total": 20,
+      "acc": 1.0
+    },
+    "PLAY_MUSIC": {
+      "correct": 17,
+      "total": 19,
+      "acc": 0.8947368421052632
+    },
+    "STOP": {
+      "correct": 24,
+      "total": 25,
+      "acc": 0.96
+    },
+    "TEMPERATURE": {
+      "correct": 50,
+      "total": 50,
+      "acc": 1.0
+    },
+    "TIME": {
+      "correct": 22,
+      "total": 25,
+      "acc": 0.88
+    },
+    "TIMER": {
+      "correct": 58,
+      "total": 58,
+      "acc": 1.0
+    },
+    "VOLUME_DOWN": {
+      "correct": 16,
+      "total": 21,
+      "acc": 0.7619047619047619
+    },
+    "VOLUME_UP": {
+      "correct": 14,
+      "total": 18,
+      "acc": 0.7777777777777778
+    },
+    "WEATHER": {
+      "correct": 19,
+      "total": 20,
+      "acc": 0.95
+    }
+  },
+  "real": {
+    "n": 184,
+    "intent_accuracy": 0.6847826086956522,
+    "command_accuracy": 0.657608695652174
+  },
+  "synthetic": {
+    "n": 769,
+    "intent_accuracy": 0.9713914174252276,
+    "command_accuracy": 0.9713914174252276
+  },
+  "reject_gate": {
+    "min_score": -1000000000.0,
+    "min_margin": 0.0,
+    "min_confidence": 0.1617,
+    "intent_thresholds": {}
+  }
+}

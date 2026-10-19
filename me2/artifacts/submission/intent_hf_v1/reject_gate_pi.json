@@ -1,0 +1,14 @@
+{
+  "min_score": -1000000000.0,
+  "min_margin": 0.05,
+  "min_confidence": 0.50,
+  "intent_thresholds": {
+    "TEMPERATURE": 0.28,
+    "WEATHER": 0.45,
+    "BRIGHTNESS": 0.40,
+    "COLOR": 0.40,
+    "ALARM": 0.40,
+    "TIMER": 0.40
+  },
+  "_comment": "Pi USB-mic demo gate. Per-intent floors for slotted commands that land ~0.28–0.45 on Pi mic. min_margin 0.05 for near-ties."
+}

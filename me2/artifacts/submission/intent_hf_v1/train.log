@@ -1,0 +1,150 @@
+Run intent_hf_v1 | model=intent params=514,838 | device=cuda
+Train 10780 | Val 953 | Test 4443 | hf=True
+Epoch   1/80 loss 3.519 val_cmd 23.19% intent 36.41% FAR 62.0% FRR  8.1% (13s)
+  -> saved best (val command 23.19%)
+Epoch   2/80 loss 2.701 val_cmd 43.76% intent 51.52% FAR 53.2% FRR 10.0% (9s)
+  -> saved best (val command 43.76%)
+Epoch   3/80 loss 1.900 val_cmd 60.23% intent 64.64% FAR 58.3% FRR  4.7% (9s)
+  -> saved best (val command 60.23%)
+Epoch   4/80 loss 1.369 val_cmd 72.61% intent 74.19% FAR 45.1% FRR  4.9% (8s)
+  -> saved best (val command 72.61%)
+Epoch   5/80 loss 1.100 val_cmd 74.92% intent 76.39% FAR 46.4% FRR  2.6% (9s)
+  -> saved best (val command 74.92%)
+Epoch   6/80 loss 0.974 val_cmd 78.07% intent 79.85% FAR 42.4% FRR  2.7% (9s)
+  -> saved best (val command 78.07%)
+Epoch   7/80 loss 0.878 val_cmd 79.33% intent 80.59% FAR 41.4% FRR  2.1% (8s)
+  -> saved best (val command 79.33%)
+Epoch   8/80 loss 0.820 val_cmd 79.75% intent 81.01% FAR 38.6% FRR  2.7% (9s)
+  -> saved best (val command 79.75%)
+Epoch   9/80 loss 0.778 val_cmd 79.22% intent 80.69% FAR 41.7% FRR  1.5% (8s)
+Epoch  10/80 loss 0.734 val_cmd 80.48% intent 82.06% FAR 39.3% FRR  1.8% (8s)
+  -> saved best (val command 80.48%)
+Epoch  11/80 loss 0.711 val_cmd 80.69% intent 81.85% FAR 40.0% FRR  2.0% (8s)
+  -> saved best (val command 80.69%)
+Epoch  12/80 loss 0.684 val_cmd 80.06% intent 81.32% FAR 40.3% FRR  1.8% (9s)
+Epoch  13/80 loss 0.655 val_cmd 80.06% intent 81.53% FAR 42.4% FRR  1.2% (8s)
+Epoch  14/80 loss 0.640 val_cmd 82.90% intent 84.26% FAR 31.2% FRR  2.4% (9s)
+  -> saved best (val command 82.90%)
+Epoch  15/80 loss 0.629 val_cmd 81.53% intent 82.69% FAR 35.9% FRR  3.5% (9s)
+Epoch  16/80 loss 0.622 val_cmd 79.12% intent 79.75% FAR 42.7% FRR  1.7% (8s)
+Epoch  17/80 loss 0.607 val_cmd 82.48% intent 83.32% FAR 36.3% FRR  2.3% (8s)
+Epoch  18/80 loss 0.589 val_cmd 81.95% intent 82.79% FAR 37.3% FRR  2.0% (8s)
+Epoch  19/80 loss 0.580 val_cmd 82.06% intent 83.42% FAR 36.3% FRR  1.7% (9s)
+Epoch  20/80 loss 0.572 val_cmd 81.22% intent 82.27% FAR 41.4% FRR  1.2% (8s)
+Epoch  21/80 loss 0.568 val_cmd 81.95% intent 82.79% FAR 38.3% FRR  1.7% (8s)
+Epoch  22/80 loss 0.560 val_cmd 81.01% intent 81.95% FAR 40.0% FRR  2.3% (9s)
+Epoch  23/80 loss 0.557 val_cmd 84.05% intent 85.41% FAR 29.2% FRR  2.0% (9s)
+  -> saved best (val command 84.05%)
+Epoch  24/80 loss 0.554 val_cmd 82.58% intent 83.74% FAR 35.9% FRR  1.4% (9s)
+Epoch  25/80 loss 0.550 val_cmd 83.32% intent 84.16% FAR 35.3% FRR  1.4% (8s)
+Epoch  26/80 loss 0.548 val_cmd 84.99% intent 85.62% FAR 29.2% FRR  1.8% (9s)
+  -> saved best (val command 84.99%)
+Epoch  27/80 loss 0.549 val_cmd 84.05% intent 85.31% FAR 29.8% FRR  2.0% (8s)
+Epoch  28/80 loss 0.547 val_cmd 83.21% intent 84.26% FAR 34.2% FRR  2.0% (8s)
+Epoch  29/80 loss 0.542 val_cmd 83.74% intent 84.58% FAR 31.2% FRR  2.3% (8s)
+Epoch  30/80 loss 0.538 val_cmd 82.69% intent 83.63% FAR 35.3% FRR  2.0% (9s)
+Epoch  31/80 loss 0.536 val_cmd 82.37% intent 83.21% FAR 36.6% FRR  1.5% (9s)
+Epoch  32/80 loss 0.537 val_cmd 82.69% intent 83.63% FAR 35.3% FRR  2.0% (8s)
+Epoch  33/80 loss 0.534 val_cmd 82.37% intent 83.42% FAR 35.9% FRR  1.7% (9s)
+Epoch  34/80 loss 0.533 val_cmd 84.16% intent 84.68% FAR 32.2% FRR  2.1% (8s)
+Epoch  35/80 loss 0.531 val_cmd 83.53% intent 84.26% FAR 34.2% FRR  1.7% (9s)
+Epoch  36/80 loss 0.530 val_cmd 83.84% intent 84.78% FAR 31.9% FRR  2.0% (8s)
+Epoch  37/80 loss 0.530 val_cmd 83.42% intent 84.05% FAR 36.3% FRR  1.7% (9s)
+Epoch  38/80 loss 0.529 val_cmd 84.37% intent 85.31% FAR 30.2% FRR  2.6% (8s)
+Epoch  39/80 loss 0.526 val_cmd 84.05% intent 85.10% FAR 31.9% FRR  1.7% (8s)
+Epoch  40/80 loss 0.526 val_cmd 85.41% intent 85.94% FAR 28.1% FRR  2.1% (8s)
+  -> saved best (val command 85.41%)
+Epoch  41/80 loss 0.525 val_cmd 83.95% intent 84.58% FAR 32.2% FRR  2.3% (8s)
+Epoch  42/80 loss 0.524 val_cmd 84.78% intent 85.41% FAR 28.5% FRR  2.6% (9s)
+Epoch  43/80 loss 0.524 val_cmd 83.63% intent 84.26% FAR 33.2% FRR  2.3% (8s)
+Epoch  44/80 loss 0.524 val_cmd 84.16% intent 84.89% FAR 30.5% FRR  2.1% (8s)
+Epoch  45/80 loss 0.523 val_cmd 84.26% intent 85.10% FAR 31.5% FRR  2.1% (8s)
+Epoch  46/80 loss 0.522 val_cmd 83.84% intent 84.47% FAR 32.5% FRR  2.0% (8s)
+Epoch  47/80 loss 0.521 val_cmd 83.53% intent 84.37% FAR 34.2% FRR  2.0% (9s)
+Epoch  48/80 loss 0.521 val_cmd 83.53% intent 84.05% FAR 33.6% FRR  2.1% (8s)
+Epoch  49/80 loss 0.521 val_cmd 82.69% intent 83.53% FAR 36.3% FRR  2.1% (8s)
+Epoch  50/80 loss 0.520 val_cmd 83.95% intent 84.68% FAR 32.5% FRR  2.3% (8s)
+Epoch  51/80 loss 0.522 val_cmd 85.20% intent 85.83% FAR 28.5% FRR  2.6% (8s)
+Epoch  52/80 loss 0.520 val_cmd 85.10% intent 85.62% FAR 29.2% FRR  2.7% (9s)
+Epoch  53/80 loss 0.519 val_cmd 84.89% intent 85.52% FAR 30.2% FRR  2.1% (9s)
+Epoch  54/80 loss 0.519 val_cmd 84.37% intent 84.89% FAR 31.5% FRR  2.3% (9s)
+Epoch  55/80 loss 0.518 val_cmd 85.31% intent 85.83% FAR 28.5% FRR  2.6% (9s)
+Epoch  56/80 loss 0.518 val_cmd 84.58% intent 85.31% FAR 30.8% FRR  2.3% (8s)
+Epoch  57/80 loss 0.517 val_cmd 84.58% intent 85.20% FAR 30.8% FRR  2.3% (9s)
+Epoch  58/80 loss 0.517 val_cmd 83.95% intent 84.47% FAR 32.9% FRR  2.4% (9s)
+Epoch  59/80 loss 0.518 val_cmd 84.05% intent 84.68% FAR 31.9% FRR  2.4% (9s)
+Epoch  60/80 loss 0.517 val_cmd 83.74% intent 84.37% FAR 33.2% FRR  2.3% (9s)
+Epoch  61/80 loss 0.517 val_cmd 84.37% intent 84.99% FAR 31.2% FRR  2.4% (9s)
+Epoch  62/80 loss 0.516 val_cmd 84.89% intent 85.62% FAR 30.2% FRR  2.6% (9s)
+Epoch  63/80 loss 0.516 val_cmd 84.26% intent 84.78% FAR 32.2% FRR  2.4% (9s)
+Epoch  64/80 loss 0.516 val_cmd 84.47% intent 84.99% FAR 31.5% FRR  2.4% (9s)
+Epoch  65/80 loss 0.516 val_cmd 84.47% intent 84.99% FAR 31.2% FRR  2.6% (9s)
+Epoch  66/80 loss 0.516 val_cmd 84.68% intent 85.31% FAR 30.2% FRR  2.4% (9s)
+Epoch  67/80 loss 0.516 val_cmd 83.84% intent 84.37% FAR 33.6% FRR  2.4% (9s)
+Epoch  68/80 loss 0.515 val_cmd 83.53% intent 84.05% FAR 34.6% FRR  2.4% (9s)
+Epoch  69/80 loss 0.515 val_cmd 83.42% intent 83.95% FAR 34.6% FRR  2.4% (9s)
+Epoch  70/80 loss 0.515 val_cmd 84.16% intent 84.68% FAR 32.2% FRR  2.4% (9s)
+Epoch  71/80 loss 0.515 val_cmd 84.16% intent 84.68% FAR 31.9% FRR  2.4% (9s)
+Epoch  72/80 loss 0.515 val_cmd 84.05% intent 84.68% FAR 32.2% FRR  2.6% (9s)
+Epoch  73/80 loss 0.515 val_cmd 84.58% intent 85.10% FAR 30.8% FRR  2.6% (9s)
+Epoch  74/80 loss 0.515 val_cmd 84.58% intent 85.10% FAR 30.5% FRR  2.6% (9s)
+Epoch  75/80 loss 0.515 val_cmd 84.37% intent 84.89% FAR 31.2% FRR  2.6% (9s)
+Epoch  76/80 loss 0.514 val_cmd 84.05% intent 84.58% FAR 31.9% FRR  2.6% (9s)
+Epoch  77/80 loss 0.515 val_cmd 84.47% intent 84.99% FAR 30.8% FRR  2.6% (9s)
+Epoch  78/80 loss 0.515 val_cmd 84.16% intent 84.68% FAR 31.5% FRR  2.4% (9s)
+Epoch  79/80 loss 0.515 val_cmd 84.16% intent 84.68% FAR 31.5% FRR  2.6% (9s)
+Epoch  80/80 loss 0.515 val_cmd 84.16% intent 84.68% FAR 31.5% FRR  2.4% (9s)
+{
+  "tag": "intent_hf_v1",
+  "version": "v1",
+  "experiment": "intent_crnn_hf",
+  "notes": "Baseline IntentCRNN (DS-conv + BiGRU96x2 + attn pool + intent/slot heads). Same HF gold as ctc_hf_s0. AMP on. No FIL / synth-extra / numerals.",
+  "parent": null,
+  "model": "intent",
+  "params": 514838,
+  "best_epoch": 40,
+  "best_val_command_acc": 0.8541448058761805,
+  "val": {
+    "intent_accuracy": 0.9160545645330536,
+    "command_accuracy": 0.9108079748163693,
+    "false_accept_rate": 0.09830508474576272,
+    "false_reject_rate": 0.02127659574468085,
+    "real": {
+      "n": 184,
+      "intent_accuracy": 0.6847826086956522,
+      "command_accuracy": 0.657608695652174
+    },
+    "synthetic": {
+      "n": 769,
+      "intent_accuracy": 0.9713914174252276,
+      "command_accuracy": 0.9713914174252276
+    },
+    "n": 953
+  },
+  "test": {
+    "intent_accuracy": 0.9421562007652488,
+    "command_accuracy": 0.9345037137069547,
+    "false_accept_rate": 0.3815789473684211,
+    "false_reject_rate": 0.01740325166017861,
+    "real": {
+      "n": 824,
+      "intent_accuracy": 0.7269417475728155,
+      "command_accuracy": 0.7014563106796117
+    },
+    "synthetic": {
+      "n": 3619,
+      "intent_accuracy": 0.991157778391821,
+      "command_accuracy": 0.9875656258634982
+    },
+    "n": 4443
+  },
+  "reject_gate": {
+    "min_score": -1000000000.0,
+    "min_margin": 0.0,
+    "min_confidence": 0.1617,
+    "intent_thresholds": {}
+  },
+  "git_commit": "unknown",
+  "dataset_fingerprint": "636839f5180f00f1ec660c75c5957a9271d439dda1a8d792d3e511de8be1c59a",
+  "finished_at": "2026-10-06T16:49:28"
+}

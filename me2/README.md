@@ -5,11 +5,27 @@ No cloud, no LLM, no pretrained speech weights — train from scratch.
 
 | | |
 |---|---|
+| **Repo** | [`delacruzken/ai231`](https://github.com/delacruzken/ai231) · this folder [`me2/`](https://github.com/delacruzken/ai231/tree/main/me2) |
+| **Reproduce** | **`bash me2/reproduce.sh`** (tests + shipped ONNX check) |
+| **Submission** | [`SUBMISSION.md`](SUBMISSION.md) · weights in [`artifacts/submission/`](artifacts/submission/) |
 | **Dataset** | Course gold set on Hugging Face: [`ai231-me2-voice-commands`](https://huggingface.co/datasets/airimonda/ai231-me2-voice-commands) (DOI `10.57967/hf/10723`) |
-| **Benchmark** | Class VCM harness: [`vcm-benchmark`](https://github.com/airimonda/vcm-benchmark) |
+| **Benchmark** | Class VCM harness: [`vcm-benchmark`](https://github.com/airimonda/vcm-benchmark) · helper [`grammar_asr/scripts/run_pi_benchmark.sh`](grammar_asr/scripts/run_pi_benchmark.sh) |
 | **Labels** | 19 intents + `OUT_OF_SCOPE`, 93 variations, 6 slots × 3 values |
 | **Hardware** | Train on DGX A100 · validate on Raspberry Pi 4/5 |
 | **Status** | Rehauled for the final class contract (Oct 2026) |
+
+## One-command reproduce
+
+From the **repo root** (`ai231/`):
+
+```bash
+bash me2/reproduce.sh
+```
+
+This creates `.venv`, installs deps, runs `pytest`, verifies committed
+`artifacts/submission/` weights, and loads command + wake ONNX on CPU.
+
+Optional: `REPRODUCE_HF=1` (dataset audit) · `REPRODUCE_SMOKE=1` (tiny train).
 
 ## Architecture tracks
 
@@ -117,7 +133,10 @@ me2/
 │   ├── configs/          # smoke + gold experiment YAMLs
 │   ├── scripts/          # audit, slurm, compare, benchmark notes
 │   ├── tests/
-│   ├── runs/             # checkpoints + metrics (gitignored)
+│   ├── runs/             # working checkpoints (gitignored)
+├── artifacts/            # shipped ONNX + logs for submission (tracked)
+├── reproduce.sh          # one-command reproduction
+├── SUBMISSION.md         # reviewer checklist + URLs
 │   ├── build/            # generated bundles (gitignored)
 │   └── HISTORY.md        # pre-rehaul Option B baseline
 └── data/                 # local datasets (gitignored)

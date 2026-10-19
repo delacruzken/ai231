@@ -55,15 +55,34 @@ DEMO_UI=1 bash grammar_asr/scripts/live_debug_60s.sh
 
 Voice-only: there is no clickable furniture, text box, or on-page mic. Drive the room with `--demo-ui` or `POST /event`.
 
-## Pi
+## Pi + Mac den (usual demo)
 
-Run `server.py` on the Pi (or tunnel):
+Den server stays on the **Mac**. Pi assistant uses `--demo-ui` → `http://127.0.0.1:8765`,
+so you need a **reverse** SSH tunnel (Mac port → appear on the Pi):
+
+**Terminal on the Mac** (keep this open while demoing):
 
 ```bash
-ssh -L 8765:127.0.0.1:8765 delacruzharv@rpi5-khdc.local
+# den UI
+cd me2 && python tamagotchi_demo/server.py
+
+# separate terminal — reverse tunnel
+ssh -N -R 8765:127.0.0.1:8765 delacruzharv@rpi5-khdc.local
 ```
 
-On the Pi, start the assistant with `--demo-ui` (same machine as the server). Open the page in a browser pointed at that localhost.
+**On the Pi:**
+
+```bash
+# optional: confirm the tunnel
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8765/
+
+python assistant.py --model model.onnx --wake-model wake.onnx \
+  --reject-gate reject_gate.json --demo-ui --mic …
+```
+
+Open the den in a browser on the **Mac** at http://127.0.0.1:8765/ and click once for sound.
+
+(`ssh -L` is the opposite direction — only if the server runs on the Pi and you browse from the Mac.)
 
 ## Manual event smoke test
 
