@@ -1,0 +1,13 @@
+{
+  "min_score": -1000000000.0,
+  "min_margin": 0.08,
+  "min_confidence": 0.52,
+  "intent_thresholds": {
+    "WEATHER": 0.45,
+    "TIME": 0.48,
+    "PLAY_MUSIC": 0.50,
+    "LIGHT_ON": 0.48,
+    "LIGHT_OFF": 0.48
+  },
+  "_comment": "Live Mac/USB demo. Model often predicts WEATHER correctly at conf~0.49 which failed the old 0.58 gate. Per-intent floors for weak real-mic intents; keep CALL on the global 0.52 floor."
+}

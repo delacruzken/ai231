@@ -1,0 +1,20 @@
+{
+  "best_val_balanced_accuracy": 0.9850746268656716,
+  "validation": {
+    "threshold": 0.637002,
+    "accuracy": 0.974025974025974,
+    "balanced_accuracy": 0.9850746268656716,
+    "precision": 0.8333333333333334,
+    "recall": 1.0,
+    "false_accept_rate": 0.029850746268656716,
+    "false_reject_rate": 0.0,
+    "n_positive": 20,
+    "n_negative": 134
+  },
+  "out": "grammar_asr/runs/wake_kaki_v6b/best.pt",
+  "params": 1132,
+  "train_positive": 78,
+  "train_negative": 537,
+  "val_positive": 20,
+  "val_negative": 134
+}

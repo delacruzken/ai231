@@ -1,0 +1,6 @@
+{
+  "min_score": -1000000000.0,
+  "min_margin": 0.0,
+  "min_confidence": 0.1617,
+  "intent_thresholds": {}
+}

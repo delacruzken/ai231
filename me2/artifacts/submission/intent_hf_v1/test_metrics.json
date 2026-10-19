@@ -1,0 +1,122 @@
+{
+  "n": 4443,
+  "intent_accuracy": 0.9421562007652488,
+  "command_accuracy": 0.9345037137069547,
+  "false_accept_rate": 0.3815789473684211,
+  "false_reject_rate": 0.01740325166017861,
+  "n_oos": 76,
+  "n_in_scope": 4367,
+  "per_intent": {
+    "ALARM": {
+      "correct": 418,
+      "total": 423,
+      "acc": 0.9881796690307328
+    },
+    "BRIGHTNESS": {
+      "correct": 419,
+      "total": 423,
+      "acc": 0.9905437352245863
+    },
+    "CALL": {
+      "correct": 131,
+      "total": 141,
+      "acc": 0.9290780141843972
+    },
+    "COLOR": {
+      "correct": 400,
+      "total": 423,
+      "acc": 0.9456264775413712
+    },
+    "CREATE_REMINDER": {
+      "correct": 422,
+      "total": 423,
+      "acc": 0.9976359338061466
+    },
+    "LIGHT_OFF": {
+      "correct": 120,
+      "total": 141,
+      "acc": 0.851063829787234
+    },
+    "LIGHT_ON": {
+      "correct": 125,
+      "total": 141,
+      "acc": 0.8865248226950354
+    },
+    "LIST_REMINDERS": {
+      "correct": 134,
+      "total": 141,
+      "acc": 0.950354609929078
+    },
+    "MESSAGE": {
+      "correct": 133,
+      "total": 137,
+      "acc": 0.9708029197080292
+    },
+    "NEXT": {
+      "correct": 132,
+      "total": 141,
+      "acc": 0.9361702127659575
+    },
+    "PAUSE": {
+      "correct": 131,
+      "total": 141,
+      "acc": 0.9290780141843972
+    },
+    "PLAY_MUSIC": {
+      "correct": 121,
+      "total": 141,
+      "acc": 0.8581560283687943
+    },
+    "STOP": {
+      "correct": 131,
+      "total": 141,
+      "acc": 0.9290780141843972
+    },
+    "TEMPERATURE": {
+      "correct": 421,
+      "total": 423,
+      "acc": 0.9952718676122931
+    },
+    "TIME": {
+      "correct": 127,
+      "total": 141,
+      "acc": 0.900709219858156
+    },
+    "TIMER": {
+      "correct": 422,
+      "total": 423,
+      "acc": 0.9976359338061466
+    },
+    "VOLUME_DOWN": {
+      "correct": 117,
+      "total": 141,
+      "acc": 0.8297872340425532
+    },
+    "VOLUME_UP": {
+      "correct": 109,
+      "total": 141,
+      "acc": 0.7730496453900709
+    },
+    "WEATHER": {
+      "correct": 126,
+      "total": 141,
+      "acc": 0.8936170212765957
+    }
+  },
+  "real": {
+    "n": 824,
+    "intent_accuracy": 0.7269417475728155,
+    "command_accuracy": 0.7014563106796117
+  },
+  "synthetic": {
+    "n": 3619,
+    "intent_accuracy": 0.991157778391821,
+    "command_accuracy": 0.9875656258634982
+  },
+  "reject_gate": {
+    "min_score": -1000000000.0,
+    "min_margin": 0.0,
+    "min_confidence": 0.1617,
+    "intent_thresholds": {}
+  }
+}

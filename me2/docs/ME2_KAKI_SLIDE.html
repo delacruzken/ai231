@@ -15,6 +15,9 @@
       --cream: #f7f4ef;
       --card: #ffffff;
       --ok: #1f6b45;
+      /* Google Slides widescreen 16:9 */
+      --slide-w: 13.333in;
+      --slide-h: 7.5in;
     }
 
     * { box-sizing: border-box; }
@@ -26,80 +29,117 @@
       font-family: "IBM Plex Sans", system-ui, sans-serif;
     }
 
-    .slide {
-      width: min(1280px, 100vw);
-      min-height: min(720px, 100vh);
-      margin: 12px auto;
-      padding: 28px 36px 24px;
-      background: var(--cream);
-      border: 1px solid #ddd;
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 18px;
+      padding: 20px 16px 40px;
     }
 
+    /* Fixed Google Slides canvas — content must fit, no scroll */
+    .slide {
+      width: var(--slide-w);
+      height: var(--slide-h);
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      margin: 0;
+      padding: 18px 22px 14px;
+      background: var(--cream);
+      border: 1px solid #ddd;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .hint {
+      color: #bbb;
+      font-size: 12px;
+      text-align: center;
+      max-width: 40rem;
+      line-height: 1.4;
+    }
+    .hint code { color: #ddd; font-size: 11px; }
+
     header {
+      flex: 0 0 auto;
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 12px;
+      gap: 10px;
       align-items: end;
-      border-bottom: 3px solid var(--maroon);
-      padding-bottom: 12px;
-      margin-bottom: 18px;
+      border-bottom: 2.5px solid var(--maroon);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     h1 {
       margin: 0;
-      font-size: 28px;
+      font-size: 22px;
       letter-spacing: -0.02em;
       color: var(--maroon);
+      line-height: 1.15;
     }
     .subtitle {
-      margin: 4px 0 0;
-      font-size: 14px;
+      margin: 3px 0 0;
+      font-size: 12px;
       color: var(--muted);
       font-weight: 500;
     }
     .meta {
       text-align: right;
-      font-size: 12px;
+      font-size: 10.5px;
       color: var(--muted);
-      line-height: 1.45;
+      line-height: 1.4;
     }
     .meta strong { color: var(--ink); }
 
     .grid {
+      flex: 1 1 auto;
+      min-height: 0;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      gap: 16px 20px;
+      grid-template-columns: 1.12fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 10px 12px;
     }
 
     section {
       background: var(--card);
       border: 1px solid var(--line);
-      padding: 12px 14px 14px;
+      padding: 8px 10px 9px;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     section h2 {
-      margin: 0 0 8px;
-      font-size: 13px;
+      flex: 0 0 auto;
+      margin: 0 0 5px;
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--maroon);
       border-bottom: 1px solid var(--line);
-      padding-bottom: 6px;
+      padding-bottom: 4px;
     }
 
     .pipeline {
+      flex: 0 0 auto;
       background: var(--card);
       border: 1px solid var(--line);
-      padding: 10px 12px 12px;
-      margin-bottom: 16px;
+      padding: 7px 10px 8px;
+      margin-bottom: 10px;
     }
     .pipeline h2 {
-      margin: 0 0 8px;
-      font-size: 13px;
+      margin: 0 0 5px;
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--maroon);
       border-bottom: 1px solid var(--line);
-      padding-bottom: 6px;
+      padding-bottom: 4px;
     }
     .flow {
       display: grid;
@@ -111,7 +151,7 @@
         minmax(0, 1fr) auto
         minmax(0, 1fr);
       align-items: stretch;
-      gap: 0 4px;
+      gap: 0 3px;
       width: 100%;
     }
     .stage {
@@ -122,39 +162,39 @@
       text-align: center;
       border: 1.5px solid var(--line);
       background: #fbfaf7;
-      padding: 8px 6px;
+      padding: 5px 4px;
       min-width: 0;
-      min-height: 72px;
+      min-height: 54px;
     }
     .stage-num {
       font-family: "IBM Plex Mono", monospace;
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
     }
     .stage-name {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .stage-detail {
       font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
+      font-size: 9.5px;
       font-weight: 500;
-      line-height: 1.3;
+      line-height: 1.25;
       color: var(--ink);
     }
     .flow-join {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0 2px;
+      padding: 0 1px;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 700;
       letter-spacing: 0.02em;
       text-transform: uppercase;
@@ -195,16 +235,17 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12.5px;
+      font-size: 10.5px;
+      line-height: 1.3;
     }
     th, td {
       text-align: left;
       vertical-align: top;
-      padding: 5px 6px;
+      padding: 3px 4px;
       border-bottom: 1px solid #e6e2da;
     }
     th {
-      width: 34%;
+      width: 28%;
       color: var(--muted);
       font-weight: 600;
     }
@@ -213,52 +254,284 @@
     .stats {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .stat {
       border: 1px solid var(--line);
-      padding: 8px 10px;
+      padding: 5px 7px;
       background: #fbfaf7;
     }
     .stat .k {
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--muted);
     }
     .stat .v {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 700;
       font-family: "IBM Plex Mono", monospace;
-      margin-top: 2px;
+      margin-top: 1px;
+      line-height: 1.2;
     }
     .stat .s {
+      font-size: 9.5px;
+      color: var(--muted);
+      margin-top: 1px;
+      line-height: 1.25;
+    }
+
+    .note {
+      margin: 5px 0 0;
+      font-size: 9.5px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    code { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; }
+
+    /* Scale down on smaller screens; keep 16:9 via aspect-ratio */
+    @media screen and (max-width: 1280px) {
+      .slide {
+        width: min(var(--slide-w), calc(100vw - 32px));
+        height: auto;
+        aspect-ratio: 16 / 9;
+      }
+    }
+
+    @page {
+      size: 13.333in 7.5in;
+      margin: 0;
+    }
+    /* —— Slide 2: To Be Submitted —— */
+    .slide-submit {
+      gap: 0;
+    }
+    .slide-submit > h1 {
+      flex: 0 0 auto;
+      font-size: 28px;
+      margin: 0 0 6px;
+      color: var(--ink);
+    }
+    .title-rules {
+      flex: 0 0 auto;
+      height: 6px;
+      margin: 0 0 18px;
+      background:
+        linear-gradient(#2e7d32, #2e7d32) top / 100% 3.5px no-repeat,
+        linear-gradient(#1565c0, #1565c0) bottom / 100% 2px no-repeat;
+    }
+    .submit-box {
+      flex: 0 0 auto;
+      border: 1.5px solid #8b6914;
+      background: #fffef5;
+      padding: 4px 0;
+      margin-bottom: 16px;
+    }
+    .submit-box table {
+      font-size: 13px;
+    }
+    .submit-box th {
+      width: 22%;
+      color: var(--ink);
+      font-weight: 600;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e8e0c8;
+    }
+    .submit-box td {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e8e0c8;
+      color: var(--ink);
+    }
+    .submit-box tr:last-child th,
+    .submit-box tr:last-child td {
+      border-bottom: none;
+    }
+    .submit-box .todo-fill {
+      color: #9a3412;
+    }
+    .submit-box .ok-fill {
+      color: var(--ink);
+    }
+
+    .reviewer-block {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .reviewer-block > h2 {
+      flex: 0 0 auto;
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1565c0;
+      text-transform: none;
+      letter-spacing: 0;
+      border: none;
+      padding: 0;
+    }
+    .check-table {
+      flex: 1 1 auto;
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      border: 1px solid #90caf9;
+    }
+    .check-table thead th {
+      background: #1565c0;
+      color: #fff;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 12px;
+      border: none;
+      width: auto;
+    }
+    .check-table thead th:first-child { width: 48px; }
+    .check-table thead th:last-child { width: 22%; }
+    .check-table tbody td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #bbdefb;
+      vertical-align: middle;
+      font-size: 12.5px;
+    }
+    .check-table tbody tr:nth-child(odd) { background: #e3f2fd; }
+    .check-table tbody tr:nth-child(even) { background: #fff; }
+    .check-table tbody tr:last-child td { border-bottom: none; }
+    .check-table .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 600;
+      color: #1565c0;
+    }
+    .status-todo {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: #9a3412;
+      font-weight: 600;
+    }
+    .status-done {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--ok);
+      font-weight: 700;
+    }
+    .status-partial {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: #b45309;
+      font-weight: 700;
+    }
+
+    /* —— Slide 3: 2-minute speaker script —— */
+    .slide-script {
+      gap: 0;
+    }
+    .slide-script > h1 {
+      flex: 0 0 auto;
+      font-size: 24px;
+      margin: 0 0 4px;
+      color: var(--maroon);
+    }
+    .slide-script .script-sub {
+      flex: 0 0 auto;
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .script-grid {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 10px;
+    }
+    .script-beat {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .script-beat .t {
+      flex: 0 0 auto;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--maroon);
+      margin-bottom: 4px;
+    }
+    .script-beat .label {
+      flex: 0 0 auto;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--ink);
+    }
+    .script-beat p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--ink);
+    }
+    .script-beat .cue {
+      margin-top: 6px;
       font-size: 11px;
       color: var(--muted);
-      margin-top: 2px;
+      font-style: italic;
     }
-
-    ul.tight {
-      margin: 0;
-      padding-left: 16px;
-      font-size: 12.5px;
-      line-height: 1.45;
-    }
-    .note {
-      margin-top: 8px;
-      font-size: 11.5px;
+    .script-footer {
+      flex: 0 0 auto;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
       color: var(--muted);
-      line-height: 1.4;
+      line-height: 1.35;
     }
-    code { font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+    .script-footer strong { color: var(--ink); }
 
     @media print {
-      body { background: white; }
-      .slide { margin: 0; width: 100%; min-height: auto; border: none; }
+      html, body {
+        background: white;
+        padding: 0;
+        min-height: 0;
+        display: block;
+      }
+      .hint { display: none; }
+      .slide {
+        margin: 0;
+        width: 13.333in;
+        height: 7.5in;
+        max-width: none;
+        border: none;
+        box-shadow: none;
+        page-break-after: always;
+        page-break-inside: avoid;
+        break-after: page;
+      }
+      .slide:last-of-type {
+        page-break-after: auto;
+        break-after: auto;
+      }
     }
   </style>
 </head>
 <body>
+  <p class="hint">
+    3 pages · Google Slides 16:9 (13.333″ × 7.5″) · Print → Save as PDF → Import in Google Slides,
+    or screenshot each page. Slide 3 = speaker script (not for the audience).
+  </p>
+
+  <!-- ========== SLIDE 1 ========== -->
   <article class="slide">
     <header>
       <div>
@@ -343,7 +616,11 @@
           </tr>
           <tr>
             <th>Runtime</th>
-            <td>onnxruntime CPU · Pi 5 USB mic · den UI on Mac via SSH tunnel</td>
+            <td>
+              onnxruntime CPU · Pi 5 USB mic · den UI on Mac via SSH tunnel<br />
+              Live command <code>infer_ms</code>: <strong>~6 ms</strong> median · <strong>~12 ms</strong> p90
+              (n=152 JSONL)
+            </td>
           </tr>
         </table>
       </section>
@@ -368,15 +645,16 @@
             <div class="s">recall 100% · FAR 3.0% · thr 0.637</div>
           </div>
           <div class="stat">
-            <div class="k">Cmd FAR / FRR (test)</div>
-            <div class="v">38.2% / 1.7%</div>
-            <div class="s">FAR on OOS · live Pi gate tightened</div>
+            <div class="k">Live cmd latency</div>
+            <div class="v">~6 / ~12 ms</div>
+            <div class="s">p50 / p90 infer_ms · Pi onnxruntime</div>
           </div>
         </div>
         <p class="note">
-          Live Pi demo uses <code>reject_gate_pi.json</code> (min conf 0.50 + per-intent floors for
-          TEMPERATURE / WEATHER / COLOR / …). End-to-end den actions verified on-device; formal
-          Pi latency / FA-per-hour bench not in this table (see footnotes).
+          Latency = command decode time (<code>infer_ms</code>), not utterance length (<code>audio_ms</code>).
+          From live assistant JSONL (n=152); Pi console typically 4–17 ms.
+          Gate: <code>reject_gate_pi.json</code> min conf 0.50 (+ per-intent floors).
+          Test FAR/FRR 38.2% / 1.7% (OOS). Formal <code>vcm-benchmark</code> report still optional.
         </p>
       </section>
 
@@ -456,6 +734,158 @@
       </section>
     </div>
 
+  </article>
+
+  <!-- ========== SLIDE 2 ========== -->
+  <article class="slide slide-submit">
+    <h1>To Be Submitted</h1>
+    <div class="title-rules" aria-hidden="true"></div>
+
+    <div class="submit-box">
+      <table>
+        <tr>
+          <th>GitHub repository</th>
+          <td class="ok-fill">
+            <code>delacruzken/ai231</code> · folder <code>me2/</code>
+            · reproduce: <code>bash me2/reproduce.sh</code>
+          </td>
+        </tr>
+        <tr>
+          <th>Dataset location</th>
+          <td class="ok-fill">
+            HF <code>airimonda/ai231-me2-voice-commands</code>
+            · DOI <code>10.57967/hf/10723</code>
+            · research / education (mixed upstream terms)
+          </td>
+        </tr>
+        <tr>
+          <th>A100 cluster</th>
+          <td class="ok-fill">
+            UP DGX · 1× A100 · <code>/mnt/jfs_hpc/kbdelacruz/ai231</code>
+            · <code>intent_hf_v1</code> seed 1 · ~11.6 min epoch-sum wall
+            · wake <code>wake_kaki_v6</code> seed 5
+          </td>
+        </tr>
+        <tr>
+          <th>Model weights</th>
+          <td class="ok-fill">
+            <code>me2/artifacts/submission/</code>
+            · <code>intent_hf_v1/command.onnx</code> + <code>best.pt</code> + <code>train.log</code>
+            · <code>wake_kaki_v6/kaki.onnx</code>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="reviewer-block">
+      <h2>What the reviewer will look for</h2>
+      <table class="check-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Item</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td>Repo public, one-command reproduction</td>
+            <td class="status-done">done</td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td>Dataset licensed and citable (DOI)</td>
+            <td class="status-done">done</td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td>Training logs + final checkpoint committed</td>
+            <td class="status-done">done</td>
+          </tr>
+          <tr>
+            <td class="num">4</td>
+            <td>Pi 4 latency reproduced by the posted script</td>
+            <td class="status-partial">partial — live ~6 ms</td>
+          </tr>
+          <tr>
+            <td class="num">5</td>
+            <td>Held-out test set, unseen speakers</td>
+            <td class="status-done">done</td>
+          </tr>
+          <tr>
+            <td class="num">6</td>
+            <td>Baseline of comparable size compared</td>
+            <td class="status-done">done</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <!-- ========== SLIDE 3: SPEAKER SCRIPT ========== -->
+  <article class="slide slide-script">
+    <h1>Speaker script · ~2 minutes</h1>
+    <p class="script-sub">
+      Point at Slide 1 while talking · leave ~20–30s for a live “kaki …” demo if ready
+    </p>
+
+    <div class="script-grid">
+      <div class="script-beat">
+        <div class="t">0:00 – 0:20</div>
+        <div class="label">Hook</div>
+        <p>
+          “I’m Ken. ME2 is <strong>Kaki</strong> — a voice-controlled smart den.
+          Always-on wake word and intent recognition <strong>on the edge</strong>,
+          so there’s no cloud round-trip for ASR. Train on the UP DGX;
+          run on a Raspberry Pi 5 with a Mac den UI.”
+        </p>
+        <p class="cue">Gesture at title + meta (author / Pi + Mac).</p>
+      </div>
+
+      <div class="script-beat">
+        <div class="t">0:20 – 0:50</div>
+        <div class="label">Pipeline</div>
+        <p>
+          “Six stages: mic in → log-mel features → <strong>wake</strong> with a tiny CNN
+          listening for ‘kaki’ → after wake, a <strong>CRNN</strong> understands the command →
+          a <strong>confidence gate</strong> filters weak guesses → then we
+          <strong>actuate</strong>: den lights and climate, Spotify, FaceTime/Messages.”
+        </p>
+        <p class="cue">Walk the pipeline left → right.</p>
+      </div>
+
+      <div class="script-beat">
+        <div class="t">0:50 – 1:15</div>
+        <div class="label">Model size</div>
+        <p>
+          “Command model is a CRNN — about <strong>half a million</strong> parameters,
+          <strong>~2 MB</strong> ONNX. Wake is tiny — <strong>~1K params, ~7 KB</strong>.
+          Both run on onnxruntime CPU on the Pi with a USB mic;
+          the den UI is on the Mac over an SSH tunnel.”
+        </p>
+        <p class="cue">Point at Model / Parameters row.</p>
+      </div>
+
+      <div class="script-beat">
+        <div class="t">1:15 – 2:00</div>
+        <div class="label">Numbers + close</div>
+        <p>
+          “Overall test looks high — <strong>~93%</strong> — but a lot of that is synthetic.
+          On <strong>real speech</strong>, the honest number is about <strong>70%</strong>
+          command accuracy. Wake val is strong: <strong>~98.5%</strong> balanced accuracy.
+          Shipped runs: <code>intent_hf_v1</code> + <code>wake_kaki_v6</code>.”
+        </p>
+        <p class="cue">
+          Demo: “kaki” then lights / weather / play music. Skip optim unless asked.
+        </p>
+      </div>
+    </div>
+
+    <p class="script-footer">
+      <strong>Focus:</strong> pipeline story → tiny-on-Pi → <strong>real ~70%</strong> (not synth 99%) → one live command.
+      Don’t digress into hyperparams or house model names — say “tiny CNN” and “CRNN.”
+    </p>
   </article>
 </body>
 </html>

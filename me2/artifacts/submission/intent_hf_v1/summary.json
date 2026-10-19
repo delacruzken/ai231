@@ -1,0 +1,54 @@
+{
+  "tag": "intent_hf_v1",
+  "version": "v1",
+  "experiment": "intent_crnn_hf",
+  "notes": "Baseline IntentCRNN (DS-conv + BiGRU96x2 + attn pool + intent/slot heads). Same HF gold as ctc_hf_s0. AMP on. No FIL / synth-extra / numerals.",
+  "parent": null,
+  "model": "intent",
+  "params": 514838,
+  "best_epoch": 40,
+  "best_val_command_acc": 0.8541448058761805,
+  "val": {
+    "intent_accuracy": 0.9160545645330536,
+    "command_accuracy": 0.9108079748163693,
+    "false_accept_rate": 0.09830508474576272,
+    "false_reject_rate": 0.02127659574468085,
+    "real": {
+      "n": 184,
+      "intent_accuracy": 0.6847826086956522,
+      "command_accuracy": 0.657608695652174
+    },
+    "synthetic": {
+      "n": 769,
+      "intent_accuracy": 0.9713914174252276,
+      "command_accuracy": 0.9713914174252276
+    },
+    "n": 953
+  },
+  "test": {
+    "intent_accuracy": 0.9421562007652488,
+    "command_accuracy": 0.9345037137069547,
+    "false_accept_rate": 0.3815789473684211,
+    "false_reject_rate": 0.01740325166017861,
+    "real": {
+      "n": 824,
+      "intent_accuracy": 0.7269417475728155,
+      "command_accuracy": 0.7014563106796117
+    },
+    "synthetic": {
+      "n": 3619,
+      "intent_accuracy": 0.991157778391821,
+      "command_accuracy": 0.9875656258634982
+    },
+    "n": 4443
+  },
+  "reject_gate": {
+    "min_score": -1000000000.0,
+    "min_margin": 0.0,
+    "min_confidence": 0.1617,
+    "intent_thresholds": {}
+  },
+  "git_commit": "unknown",
+  "dataset_fingerprint": "636839f5180f00f1ec660c75c5957a9271d439dda1a8d792d3e511de8be1c59a",
+  "finished_at": "2026-10-06T16:49:28"
+}
