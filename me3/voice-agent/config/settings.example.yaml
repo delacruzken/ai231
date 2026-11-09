@@ -1,0 +1,92 @@
+# ME3 voice-agent settings (example).
+# Copy to config/settings.yaml for local overrides. Secrets stay in .env.
+
+paths:
+  data_dir: data
+  artifacts_dir: artifacts
+  workspaces_dir: workspaces
+  logs_dir: logs
+  models_dir: models
+  # Sibling of voice-agent under me3/
+  fd_benchmark_dir: ../fd-benchmark
+
+audio:
+  # Normalize capture to 16 kHz mono for ASR/VAD (resample boundary)
+  input_sample_rate: 16000
+  input_channels: 1
+  # Piper lessac-medium native rate; device playback may differ (resample boundary)
+  output_sample_rate: 22050
+  output_channels: 1
+  pcm_format: pcm_f32le
+  # null = system default; set index or use hint substring for M1A later
+  input_device: null
+  output_device: null
+  # When set (e.g. "EMEET" / "M1A"), prefer matching device name over default
+  input_device_hint: ""
+  output_device_hint: ""
+  capture_blocksize: 1024
+  playback_blocksize: 1024
+  capture_queue_max: 64
+
+session:
+  # Silence heuristics (ms) from architecture §5 — initial tuning, not measured results
+  silence_normal_ms: 600
+  silence_incomplete_ms: 1200
+  silence_clarification_ms: 2000
+  ack_delay_ms: 700
+  backchannel_enabled: false
+  backchannel_cooldown_ms: 10000
+  overlap_yield_ms: 900
+  # Phase 2: keep capture stream open for readiness; discard samples while OFF
+  discard_while_off: true
+  # Force MockLLM even if ANTHROPIC_API_KEY is set (tests)
+  force_mock_llm: false
+  max_context_turns: 12
+  timezone: Asia/Manila
+  locale: en_PH
+
+models:
+  asr: sherpa-onnx-streaming-zipformer-en-2023-02-21-int8
+  tts: en_US-lessac-medium
+  vad: silero-vad
+  llm: claude-haiku-4-5  # confirm exact API id at first live call
+  asr_threads: 2
+  tts_threads: 1
+  vad_threads: 1
+
+speech:
+  asr_queue_max: 64
+  tts_queue_max: 32
+  asr_host: 127.0.0.1
+  asr_port: 8765
+  tts_host: 127.0.0.1
+  tts_port: 8766
+  vad_threshold: 0.5
+  vad_window: 512
+
+ui:
+  host: 127.0.0.1
+  port: 8780
+  # Require ME3_UI_TOKEN in env; query/header must match
+  require_token: true
+
+mcp:
+  asr:
+    transport: stdio
+  tts:
+    transport: stdio
+  tasks:
+    transport: stdio
+    # Unresolved: if OpenCode also needs Tasks, add loopback Streamable HTTP later
+  delegation:
+    transport: stdio
+
+pending:
+  # Explicit until provisioned — fail closed when a feature requires them
+  anthropic_api_key: true
+  tavily_api_key: true
+  github_pat: true
+  owner_public_profile: true
+  m1a_device_path: true
+  execution_permissions: true
+  opencode_server: true

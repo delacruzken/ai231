@@ -1,0 +1,60 @@
+{
+  "fetched_at": "2026-11-08T04:10:19Z",
+  "asr": {
+    "id": "sherpa-onnx-streaming-zipformer-en-2023-02-21",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-02-21.tar.bz2",
+    "encoder": "sherpa-onnx-streaming-zipformer-en-2023-02-21/encoder-epoch-99-avg-1.int8.onnx",
+    "decoder": "sherpa-onnx-streaming-zipformer-en-2023-02-21/decoder-epoch-99-avg-1.int8.onnx",
+    "joiner": "sherpa-onnx-streaming-zipformer-en-2023-02-21/joiner-epoch-99-avg-1.int8.onnx",
+    "tokens": "sherpa-onnx-streaming-zipformer-en-2023-02-21/tokens.txt",
+    "note": "INT8 encoder/joiner; decoder may be fp32 if int8 absent in archive"
+  },
+  "tts": {
+    "id": "en_US-lessac-medium",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+    "runtime": "piper-tts==1.8.0 (PiperVoice; en_US-lessac-medium.onnx)",
+    "model": "vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx",
+    "tokens": "vits-piper-en_US-lessac-medium/tokens.txt",
+    "data_dir": "vits-piper-en_US-lessac-medium/espeak-ng-data",
+    "sample_rate_hz": 22050,
+    "note": "sherpa-onnx 2.0.x OfflineTts deprecated vits data_dir; use piper-tts for same voice weights"
+  },
+  "vad": {
+    "id": "silero-vad-v5",
+    "path": "silero_vad.onnx",
+    "sample_rate_hz": 16000,
+    "window_samples": 512
+  },
+  "files": [
+    {
+      "path": "sherpa-onnx-streaming-zipformer-en-2023-02-21/encoder-epoch-99-avg-1.int8.onnx",
+      "bytes": 126967571,
+      "sha256": "4b7edfb7783e94a66fead1470a066ccc2eceb14e2630d8aa1914e25f8ff35027"
+    },
+    {
+      "path": "sherpa-onnx-streaming-zipformer-en-2023-02-21/decoder-epoch-99-avg-1.int8.onnx",
+      "bytes": 540643,
+      "sha256": "279fb5e6ee22f0efb3be4dc62fe745864979970d158192851f307744d27a72c3"
+    },
+    {
+      "path": "sherpa-onnx-streaming-zipformer-en-2023-02-21/joiner-epoch-99-avg-1.int8.onnx",
+      "bytes": 259380,
+      "sha256": "480747e5f00fdbd68e0c93b09edfcd6698853526ccfe0f859ad624108ce7dda2"
+    },
+    {
+      "path": "sherpa-onnx-streaming-zipformer-en-2023-02-21/tokens.txt",
+      "bytes": 5048,
+      "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+    },
+    {
+      "path": "vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx",
+      "bytes": 63149198,
+      "sha256": "4ba07d8549906668ee855fd9abf9faf66c5db74742712ff026a159f7277fca9f"
+    },
+    {
+      "path": "silero_vad.onnx",
+      "bytes": 2327524,
+      "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
+    }
+  ]
+}

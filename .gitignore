@@ -12,5 +12,10 @@ me2/grammar_asr/runs/
 me2/grammar_asr/build/
 me2/grammar_asr/__pycache__/
 me2/grammar_asr/**/__pycache__/
+# ME3: local fd-benchmark clone (own .git/.venv/datasets/runs) — see me3/README.md
+me3/fd-benchmark/
+me3/voice-agent/.env
+me3/voice-agent/.venv/
+me3/voice-agent/ui/node_modules/
 .ipynb_checkpoints/
 *.egg-info/
