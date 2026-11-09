@@ -1,0 +1,20 @@
+# Example only — OpenCode worker is independent of the Pipecat unit (decision #20).
+# One active job initially; concrete containment rules before general command execution.
+
+[Unit]
+Description=ME3 OpenCode worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/me3/voice-agent
+EnvironmentFile=-/opt/me3/voice-agent/.env
+# ExecStart filled when OpenCode server path is pinned (Phase 6)
+ExecStart=/bin/false
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

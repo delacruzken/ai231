@@ -1,0 +1,16 @@
+# Phase 3 conversation sample bank (structural cases mirrored in sample_bank.py)
+cases:
+  - id: pause_600_complete
+    description: Complete utterance commits after ~600 ms silence
+  - id: pause_1200_incomplete
+    description: Trailing incomplete phrase waits for ~1200 ms
+  - id: self_correction
+    description: Speech during Thinking cancels generation
+  - id: barge_in_steering
+    description: Overlap with stop/cancel yields and cancels TTS
+  - id: barge_in_backchannel
+    description: Short yeah/okay resumes when backchannel-like
+  - id: off_mid_thinking
+    description: UI OFF cancels LLM and flushes speech
+  - id: ack_suppressed
+    description: Ack not spoken when result arrives before 700 ms

@@ -1,0 +1,20 @@
+# Example only — do not enable until Phase 9 hardening.
+# Pipecat/backend owns MCP child processes; do not double-supervise them.
+
+[Unit]
+Description=ME3 voice agent (Pipecat)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/me3/voice-agent
+EnvironmentFile=-/opt/me3/voice-agent/.env
+ExecStart=/opt/me3/voice-agent/.venv/bin/me3-agent
+Restart=on-failure
+RestartSec=5
+# Resource limits filled after Phase 1 measurements
+
+[Install]
+WantedBy=multi-user.target

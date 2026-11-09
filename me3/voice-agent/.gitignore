@@ -1,0 +1,57 @@
+# Secrets and local env
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+# Python packaging outputs only (do not ignore ui/dist for Pi static serve)
+/dist/
+/build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime data (keep directory via .gitkeep)
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite-*
+logs/*
+!logs/.gitkeep
+artifacts/*
+!artifacts/.gitkeep
+workspaces/*
+!workspaces/.gitkeep
+
+# Large speech weights (licenses + README + MANIFEST stay tracked)
+models/**
+!models/README.md
+!models/.gitkeep
+!models/MANIFEST.json
+!**/LICENSE*
+!**/SILERO_LICENSE
+!**/MODEL_CARD
+
+# Local config overrides
+config/settings.yaml
+config/settings.local.yaml
+
+# UI
+ui/node_modules/
+# Keep ui/dist buildable via `cd ui && npm run build`; ignore only if huge — track dist for Pi serve
+# ui/dist/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
