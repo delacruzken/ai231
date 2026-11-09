@@ -1,104 +1,300 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Ken Harvey Dela Cruz — Lead Software Engineer, UP Diliman ECE. Interests in data science, AI/ML, and building practical tools.">
-  <meta name="author" content="Ken Harvey Dela Cruz">
-  <meta name="theme-color" content="#0f172a">
-  <title>Ken Harvey Dela Cruz | Lead Software Engineer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A showcase of the top three video games of 2026: Grand Theft Auto VI, Resident Evil Requiem, and Marvel's Wolverine." />
+  <title>Top 3 Video Games of 2026</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg-alt: #121a2b;
+      --card: #151f35;
+      --text: #e8eefc;
+      --muted: #a9b7d6;
+      --accent: #66d9ff;
+      --accent-2: #ff7aa2;
+      --accent-3: #ffd166;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 12px 30px rgba(0,0,0,0.35);
+      --radius: 18px;
+      --max: 1120px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(102,217,255,0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(255,122,162,0.10), transparent 24%),
+        linear-gradient(180deg, #070b16 0%, var(--bg) 100%);
+      line-height: 1.6;
+    }
+    a { color: inherit; }
+    .wrap { width: min(calc(100% - 2rem), var(--max)); margin: 0 auto; }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(10px);
+      background: rgba(7,11,22,0.72);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 0.9rem 0;
+    }
+    .brand { font-weight: 800; letter-spacing: 0.02em; }
+    .brand span { color: var(--accent); }
+    nav ul { list-style: none; display: flex; gap: 0.35rem; padding: 0; margin: 0; flex-wrap: wrap; justify-content: flex-end; }
+    nav a {
+      text-decoration: none; color: var(--muted); font-size: 0.95rem;
+      padding: 0.45rem 0.7rem; border-radius: 999px;
+    }
+    nav a:hover, nav a:focus { color: var(--text); background: rgba(255,255,255,0.06); outline: none; }
+
+    .hero {
+      padding: 4.5rem 0 2.5rem;
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 1.5rem; align-items: stretch;
+    }
+    .hero-copy, .hero-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow);
+    }
+    .hero-copy { padding: 2rem; }
+    .eyebrow {
+      display: inline-block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--accent); background: rgba(102,217,255,0.12); border: 1px solid rgba(102,217,255,0.22);
+      padding: 0.3rem 0.6rem; border-radius: 999px; margin-bottom: 0.9rem;
+    }
+    h1 { margin: 0 0 0.75rem; font-size: clamp(2rem, 4.5vw, 3.4rem); line-height: 1.1; }
+    .lead { margin: 0; color: var(--muted); font-size: 1.05rem; max-width: 62ch; }
+    .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.4rem; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      text-decoration: none; font-weight: 650; padding: 0.75rem 1rem; border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .btn.primary { background: var(--accent); color: #041018; border-color: transparent; }
+    .btn.secondary { background: rgba(255,255,255,0.04); color: var(--text); }
+    .hero-panel { padding: 1.25rem; display: grid; gap: 0.75rem; align-content: start; }
+    .stat {
+      padding: 0.9rem; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    }
+    .stat strong { display: block; font-size: 1.1rem; }
+    .stat span { color: var(--muted); font-size: 0.95rem; }
+
+    main { padding-bottom: 3rem; }
+    .section-head { margin: 2.2rem 0 1rem; }
+    .section-head h2 { margin: 0 0 0.25rem; font-size: clamp(1.45rem, 2.5vw, 2rem); }
+    .section-head p { margin: 0; color: var(--muted); }
+
+    .games { display: grid; gap: 1.25rem; }
+    .game {
+      display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 0;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .game-media {
+      position: relative; min-height: 280px; background: #0d1426;
+      display: flex; align-items: stretch;
+    }
+    .game-media img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .media-fallback {
+      position: absolute; inset: 0; display: grid; place-items: center; padding: 1.5rem;
+      text-align: center; color: rgba(232,238,252,0.92);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01)),
+        var(--fallback-bg, linear-gradient(135deg, #1a2a4a, #0d1426));
+    }
+    .media-fallback .title { font-size: 1.35rem; font-weight: 800; margin-bottom: 0.25rem; }
+    .media-fallback .sub { color: var(--muted); font-size: 0.95rem; }
+    .game-body { padding: 1.35rem 1.35rem 1.4rem; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.65rem; }
+    .tag {
+      font-size: 0.78rem; font-weight: 650; padding: 0.28rem 0.55rem; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted);
+    }
+    .game h3 { margin: 0 0 0.45rem; font-size: clamp(1.35rem, 2.2vw, 1.8rem); }
+    .meta { color: var(--muted); margin: 0 0 0.8rem; font-size: 0.95rem; }
+    .desc { margin: 0 0 1rem; }
+    .features h4 { margin: 0 0 0.45rem; font-size: 1rem; }
+    .features ul { margin: 0; padding-left: 1.15rem; color: var(--muted); }
+    .features li { margin: 0.28rem 0; }
+    .features li::marker { color: var(--accent); }
+
+    #gta .features li::marker, #gta .eyebrow-accent { color: var(--accent); }
+    #re9 .features li::marker { color: var(--accent-2); }
+    #wolverine .features li::marker { color: var(--accent-3); }
+    #gta .game-media { --fallback-bg: linear-gradient(135deg, #12304f, #0b1020 55%, #1b3a2a); }
+    #re9 .game-media { --fallback-bg: linear-gradient(135deg, #3a1520, #0b1020 55%, #2a1733); }
+    #wolverine .game-media { --fallback-bg: linear-gradient(135deg, #3a2b12, #0b1020 55%, #2b1a12); }
+
+    footer {
+      border-top: 1px solid var(--border); color: var(--muted);
+      padding: 1.5rem 0 2.2rem; font-size: 0.92rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero-grid, .game { grid-template-columns: 1fr; }
+      .game-media { min-height: 220px; }
+    }
+    @media (max-width: 640px) {
+      .wrap { width: min(calc(100% - 1.25rem), var(--max)); }
+      .hero { padding-top: 2.5rem; }
+      .hero-copy, .game-body { padding: 1rem; }
+      nav ul { gap: 0.1rem; }
+      nav a { padding: 0.35rem 0.5rem; font-size: 0.88rem; }
+      .hero-actions { flex-direction: column; }
+      .btn { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="container header-inner">
-      <a class="brand" href="index.html" aria-label="Ken Harvey Dela Cruz home">
-        <span class="brand-mark" aria-hidden="true">KD</span>
-        <span class="brand-text">Ken Harvey Dela Cruz</span>
-      </a>
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Toggle navigation">
-        <span class="nav-toggle-bar"></span>
-        <span class="nav-toggle-bar"></span>
-        <span class="nav-toggle-bar"></span>
-      </button>
-      <nav id="site-nav" class="site-nav" aria-label="Primary">
+  <header>
+    <div class="wrap nav">
+      <div class="brand">Game<span>Watch</span> 2026</div>
+      <nav aria-label="Game sections">
         <ul>
-          <li><a href="index.html" aria-current="page">Home</a></li>
-          <li><a href="projects.html">Projects</a></li>
+          <li><a href="#gta">GTA VI</a></li>
+          <li><a href="#re9">Resident Evil</a></li>
+          <li><a href="#wolverine">Wolverine</a></li>
         </ul>
       </nav>
     </div>
   </header>
 
-  <main id="main">
+  <main>
     <section class="hero">
-      <div class="container hero-inner">
-        <p class="eyebrow">Portfolio</p>
-        <h1>Ken Harvey Dela Cruz</h1>
-        <p class="headline">Lead Software Engineer · UP Diliman ECE</p>
-        <p class="hero-summary">Building reliable software and practical tools at the intersection of engineering, data, and applied machine learning.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="projects.html">View Projects</a>
-          <a class="button button-secondary" href="https://github.com/delacruzken" target="_blank" rel="noopener noreferrer">GitHub Profile</a>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow">2026 Spotlight</div>
+          <h1>Top 3 Video Games of 2026</h1>
+          <p class="lead">A quick landing-page showcase of three of the year’s most anticipated releases: Rockstar’s return to Vice City, Capcom’s next chapter of survival horror, and Insomniac’s brutal take on Marvel’s Wolverine.</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#gta">Explore the games</a>
+            <a class="btn secondary" href="#wolverine">Jump to Wolverine</a>
+          </div>
         </div>
+        <aside class="hero-panel" aria-label="Highlights">
+          <div class="stat"><strong>3 flagship releases</strong><span>Open-world crime, survival horror, and action-adventure.</span></div>
+          <div class="stat"><strong>Built for every screen</strong><span>Responsive layout designed for mobile and desktop.</span></div>
+          <div class="stat"><strong>At-a-glance details</strong><span>Descriptions and key features for each game.</span></div>
+        </aside>
       </div>
     </section>
 
-    <section class="section" aria-labelledby="about-heading">
-      <div class="container">
-        <div class="section-header">
-          <h2 id="about-heading">About</h2>
-        </div>
-        <div class="card about-card">
-          <p>I am a Lead Software Engineer with a foundation in Electronics and Communications Engineering from UP Diliman. I enjoy working on problems where thoughtful engineering meets real-world impact.</p>
-          <p>My interests include <strong>data science</strong>, <strong>AI/ML</strong>, and <strong>building practical tools</strong> that help people work more effectively. I value clean design, maintainable systems, and solutions that are useful beyond the prototype stage.</p>
-        </div>
+    <section class="wrap" aria-labelledby="games-heading">
+      <div class="section-head">
+        <h2 id="games-heading">Featured Games</h2>
+        <p>Highlights, platforms, and what makes each release stand out.</p>
       </div>
-    </section>
 
-    <section class="section" aria-labelledby="links-heading">
-      <div class="container">
-        <div class="section-header">
-          <h2 id="links-heading">Connect</h2>
-          <p class="section-intro">Find my work, professional profile, and published portfolio online.</p>
-        </div>
-        <div class="link-grid">
-          <a class="link-card" href="https://github.com/delacruzken" target="_blank" rel="noopener noreferrer">
-            <span class="link-label">GitHub</span>
-            <span class="link-title">github.com/delacruzken</span>
-            <span class="link-desc">Repositories, code, and open-source activity.</span>
-          </a>
-          <a class="link-card" href="https://linkedin.com/in/harvdelacruz" target="_blank" rel="noopener noreferrer">
-            <span class="link-label">LinkedIn</span>
-            <span class="link-title">linkedin.com/in/harvdelacruz</span>
-            <span class="link-desc">Professional background and career updates.</span>
-          </a>
-          <a class="link-card" href="https://delacruzken.github.io/ai231/" target="_blank" rel="noopener noreferrer">
-            <span class="link-label">Portfolio</span>
-            <span class="link-title">delacruzken.github.io/ai231</span>
-            <span class="link-desc">Published AI231 work and live project demos.</span>
-          </a>
-        </div>
+      <div class="games">
+        <article class="game" id="gta">
+          <div class="game-media">
+            <img src="https://placehold.co/1200x800/12304f/e8eefc?text=Grand+Theft+Auto+VI" alt="Grand Theft Auto VI promotional image placeholder" loading="lazy" width="1200" height="800" />
+            <div class="media-fallback" aria-hidden="true">
+              <div>
+                <div class="title">Grand Theft Auto VI</div>
+                <div class="sub">Vice City returns</div>
+              </div>
+            </div>
+          </div>
+          <div class="game-body">
+            <div class="tag-row">
+              <span class="tag">Action-Adventure</span>
+              <span class="tag">Open World</span>
+              <span class="tag">Rockstar Games</span>
+            </div>
+            <h3>Grand Theft Auto VI</h3>
+            <p class="meta">Setting: Vice City and the state of Leonida &middot; Platforms: PlayStation 5, Xbox Series X|S</p>
+            <p class="desc">Grand Theft Auto VI brings Rockstar’s blockbuster crime saga to a modern-day Vice City, following the intertwined story of Lucia and Jason. Set across the vibrant, dangerous state of Leonida, the game aims to deliver a massive open world filled with story-driven missions, dynamic encounters, and the series’ signature satire.</p>
+            <div class="features">
+              <h4>Key features</h4>
+              <ul>
+                <li>Dual-protagonist narrative centered on Lucia and Jason.</li>
+                <li>Expansive open world spanning Vice City and surrounding Leonida regions.</li>
+                <li>Next-generation visuals, animation, and world density on current-gen consoles.</li>
+                <li>A mix of cinematic heists, free-roam exploration, and emergent activities.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="game" id="re9">
+          <div class="game-media">
+            <img src="https://placehold.co/1200x800/3a1520/e8eefc?text=Resident+Evil+Requiem" alt="Resident Evil Requiem promotional image placeholder" loading="lazy" width="1200" height="800" />
+            <div class="media-fallback" aria-hidden="true">
+              <div>
+                <div class="title">Resident Evil Requiem</div>
+                <div class="sub">Survival horror evolves</div>
+              </div>
+            </div>
+          </div>
+          <div class="game-body">
+            <div class="tag-row">
+              <span class="tag">Survival Horror</span>
+              <span class="tag">Action</span>
+              <span class="tag">Capcom</span>
+            </div>
+            <h3>Resident Evil Requiem</h3>
+            <p class="meta">Genre focus: Tension, investigation, and combat &middot; Platforms: PlayStation 5, Xbox Series X|S, PC</p>
+            <p class="desc">Resident Evil Requiem continues Capcom’s acclaimed horror legacy with a new nightmare built around atmosphere, mystery, and resourceful survival. Blending investigation with intense encounters, it challenges players to manage limited supplies, read dangerous spaces, and uncover the truth behind its unfolding biohazard threat.</p>
+            <div class="features">
+              <h4>Key features</h4>
+              <ul>
+                <li>Survival-horror gameplay balancing exploration, puzzles, and combat.</li>
+                <li>Tense atmosphere with an emphasis on dread, pacing, and environmental storytelling.</li>
+                <li>Strategic resource management where every decision can matter.</li>
+                <li>Modern presentation powered by Capcom’s RE Engine technology.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="game" id="wolverine">
+          <div class="game-media">
+            <img src="https://placehold.co/1200x800/3a2b12/e8eefc?text=Marvel%27s+Wolverine" alt="Marvel's Wolverine promotional image placeholder" loading="lazy" width="1200" height="800" />
+            <div class="media-fallback" aria-hidden="true">
+              <div>
+                <div class="title">Marvel’s Wolverine</div>
+                <div class="sub">Unleash the berserker</div>
+              </div>
+            </div>
+          </div>
+          <div class="game-body">
+            <div class="tag-row">
+              <span class="tag">Action-Adventure</span>
+              <span class="tag">Super Hero</span>
+              <span class="tag">Insomniac Games</span>
+            </div>
+            <h3>Marvel’s Wolverine</h3>
+            <p class="meta">Hero: Logan / Wolverine &middot; Platform: PlayStation 5</p>
+            <p class="desc">Marvel’s Wolverine is Insomniac Games’ standalone action-adventure starring Logan, one of Marvel’s most complex and formidable heroes. Designed to capture Wolverine’s raw intensity, the game promises hard-hitting combat, a character-driven story, and a darker tone that reflects the edge of the adamantium-clawed mutant.</p>
+            <div class="features">
+              <h4>Key features</h4>
+              <ul>
+                <li>Original, character-focused story built around Logan’s identity and past.</li>
+                <li>Visceral, close-quarters combat that channels Wolverine’s ferocity.</li>
+                <li>Cinematic action-adventure design from the studio behind Marvel’s Spider-Man.</li>
+                <li>A mature tone aimed at capturing the grit of the character.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <p>&copy; <span id="year"></span> Ken Harvey Dela Cruz. Built for GitHub Pages.</p>
-      <nav aria-label="Footer">
-        <ul class="footer-links">
-          <li><a href="index.html">Home</a></li>
-          <li><a href="projects.html">Projects</a></li>
-        </ul>
-      </nav>
+  <footer>
+    <div class="wrap">
+      <p>Fan-made showcase landing page for 2026 game highlights. Game titles, characters, and trademarks belong to their respective owners. Details reflect publicly discussed expectations and announced information; verify final release details with official publisher sources.</p>
     </div>
   </footer>
-
-  <script src="script.js"></script>
 </body>
 </html>
