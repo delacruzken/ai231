@@ -29,10 +29,20 @@ audio:
   capture_queue_max: 64
 
 session:
-  # Silence heuristics (ms) from architecture §5 — initial tuning, not measured results
-  silence_normal_ms: 600
-  silence_incomplete_ms: 1200
-  silence_clarification_ms: 2000
+  # Silence heuristics (ms) — tuned for snappier voice commits vs text turns
+  # (text bypasses silence). Normal ~0.4s after last speech; incomplete waits longer.
+  silence_normal_ms: 400
+  silence_incomplete_ms: 900
+  silence_clarification_ms: 1600
+  # Laptop speaker→mic: mute ASR while TTS plays + short hangover after.
+  # Sustained louder speech still interrupts (barge-in) via VAD hold.
+  echo_hangover_ms: 450
+  gate_asr_while_speaking: true
+  barge_in_vad_threshold: 0.45
+  barge_in_hold_ms: 120
+  barge_in_hangover_ms: 200
+  barge_in_energy_ratio: 2.2
+  barge_in_energy_floor: 0.018
   ack_delay_ms: 700
   backchannel_enabled: false
   backchannel_cooldown_ms: 10000

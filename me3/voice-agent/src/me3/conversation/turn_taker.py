@@ -49,18 +49,29 @@ class TurnTaker:
         self._clarify_sent = False
 
     def on_partial(self, text: str) -> None:
-        self.partial_text = (text or "").strip()
-        # speech implied by new partials
-        self.on_speech()
+        """Update transcript text without resetting the silence clock.
+
+        Silence is driven by VAD ``on_speech``. Resetting on every ASR partial
+        made endpointing wait until partials stopped trickling (often slow, and
+        worse with echo). Only treat *growing* text as continued speech.
+        """
+        t = (text or "").strip()
+        prev = self.partial_text
+        if t and len(t) > len(prev):
+            self.on_speech()
+        self.partial_text = t
 
     def is_incomplete(self, text: str | None = None) -> bool:
         t = (text if text is not None else self.partial_text).strip()
         if not t:
             return True
+        # Clear questions / exclamations are complete even if short.
+        if t.endswith(("?", "!")):
+            return False
         if INCOMPLETE_TAIL.search(t):
             return True
         # very short fragments
-        if len(t.split()) < 2 and not t.endswith(("?", "!")):
+        if len(t.split()) < 2:
             return True
         return False
 

@@ -7,6 +7,14 @@ type TranscriptRow = {
   role?: string;
   final?: boolean;
   partial?: boolean;
+  ts?: string;
+  turn_id?: string;
+};
+
+type TypewriterState = {
+  target: string;
+  shownLen: number;
+  final: boolean;
 };
 
 type SessionPayload = {
@@ -91,6 +99,18 @@ type JobRow = {
 };
 let jobs: JobRow[] = [];
 let jobsProvider = "";
+/** Optimistic: text turn submitted before session.state becomes thinking. */
+let awaitingReply = false;
+type Toast = { id: number; text: string; tone: "ok" | "warn" | "info"; jobId?: string };
+let toasts: Toast[] = [];
+let toastSeq = 0;
+let highlightJobId: string | null = null;
+let highlightTimer: number | null = null;
+/** Character-by-character reveal for Kaki replies (keyed by turn/ts). */
+const typewriters = new Map<string, TypewriterState>();
+let typewriterTimer: number | null = null;
+const TYPEWRITER_MS = 18;
+const TYPEWRITER_CHARS = 2;
 
 async function refreshTasks() {
   const token = getToken();
@@ -130,9 +150,19 @@ function coalesceTranscript(rows: TranscriptRow[]): TranscriptRow[] {
     const lastPartial =
       !!last && (last.type === "partial" || last.partial === true) && (last.role || "user") === role;
     if (lastPartial) {
+      const keptTs = last.ts || r.ts;
       out[out.length - 1] = isPartial
-        ? { ...r, role }
-        : { ...r, role, type: "final", partial: false, final: true };
+        ? { ...r, role, ts: keptTs }
+        : { ...r, role, type: "final", partial: false, final: true, ts: keptTs };
+    } else if (
+      last &&
+      !isPartial &&
+      (last.role || "user") === role &&
+      !(last.type === "partial" || last.partial === true) &&
+      normUtt(last.text) === normUtt(r.text)
+    ) {
+      // Drop duplicate finals of the same utterance (ASR + silence-commit).
+      out[out.length - 1] = { ...last, ...r, role, type: "final", partial: false, final: true, ts: last.ts || r.ts };
     } else {
       out.push(
         isPartial ? { ...r, role } : { ...r, role, type: r.type || "final", final: true }
@@ -142,8 +172,206 @@ function coalesceTranscript(rows: TranscriptRow[]): TranscriptRow[] {
   return out;
 }
 
+function formatClock(ts?: string): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+
+function normUtt(text?: string): string {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
+}
+
+function pushToast(text: string, tone: Toast["tone"] = "info", jobId?: string) {
+  const id = ++toastSeq;
+  toasts = [...toasts.slice(-4), { id, text, tone, jobId }];
+  if (jobId) {
+    highlightJobId = jobId;
+    if (highlightTimer != null) window.clearTimeout(highlightTimer);
+    highlightTimer = window.setTimeout(() => {
+      highlightJobId = null;
+      highlightTimer = null;
+      render();
+    }, 8000);
+  }
+  render();
+  window.setTimeout(() => {
+    toasts = toasts.filter((t) => t.id !== id);
+    render();
+  }, 9000);
+}
+
 function upsertTranscriptRow(row: TranscriptRow) {
   session.transcript = coalesceTranscript([...(session.transcript || []), row]);
+}
+
+/** Group chronological rows into You→Kaki exchanges (oldest → newest). */
+function groupExchanges(rows: TranscriptRow[]): TranscriptRow[][] {
+  const groups: TranscriptRow[][] = [];
+  let cur: TranscriptRow[] = [];
+  for (const r of rows) {
+    const role = r.role || "user";
+    if (role === "user" && cur.length) {
+      groups.push(cur);
+      cur = [];
+    }
+    cur.push(r);
+  }
+  if (cur.length) groups.push(cur);
+  return groups;
+}
+
+/**
+ * Flat display order (top → bottom):
+ *   Answer3, Question3, Answer2, Question2, Answer1, Question1
+ * Built by sorting — no flex `order` tricks.
+ */
+function flatDisplayTurns(rows: TranscriptRow[]): TranscriptRow[] {
+  const groups = groupExchanges(rows);
+  const scored: { row: TranscriptRow; score: number }[] = [];
+  groups.forEach((group, gi) => {
+    for (const row of group) {
+      const isAssistant = (row.role || "user") === "assistant";
+      // Newer groups get higher base; within a group assistant (answer) ranks above user.
+      const score = gi * 10 + (isAssistant ? 2 : 1);
+      scored.push({ row, score });
+    }
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map((s) => s.row);
+}
+
+function scrollTranscriptToLatest() {
+  const el = document.querySelector("#transcript");
+  if (!(el instanceof HTMLElement)) return;
+  // Newest exchange is the first child — pin scroll to top after replace.
+  const pin = () => {
+    el.scrollTop = 0;
+  };
+  pin();
+  requestAnimationFrame(() => {
+    pin();
+    requestAnimationFrame(pin);
+  });
+}
+
+function assistantTwKey(r: TranscriptRow): string {
+  return String(r.turn_id || r.ts || r.segment_id || r.text || "assistant").slice(0, 96);
+}
+
+function syncTypewriter(key: string, target: string, isFinal: boolean) {
+  const prev = typewriters.get(key);
+  if (!prev) {
+    // Animate live replies; snap historical finals on reconnect/load.
+    const live =
+      !isFinal ||
+      session.state === "speaking" ||
+      session.state === "thinking" ||
+      awaitingReply;
+    typewriters.set(key, {
+      target,
+      shownLen: live ? 0 : target.length,
+      final: isFinal,
+    });
+    if (live) ensureTypewriterTimer();
+    return;
+  }
+  // Growing cumulative stream — keep caret; only rewind if text diverged hard.
+  if (target.startsWith(prev.target.slice(0, Math.min(prev.shownLen, prev.target.length)))) {
+    prev.target = target;
+  } else if (!target.startsWith(prev.target) && !prev.target.startsWith(target)) {
+    prev.target = target;
+    prev.shownLen = 0;
+  } else {
+    prev.target = target;
+    prev.shownLen = Math.min(prev.shownLen, target.length);
+  }
+  prev.final = isFinal;
+  if (prev.shownLen < prev.target.length) ensureTypewriterTimer();
+}
+
+function pruneTypewriters(liveKeys: Set<string>) {
+  for (const key of [...typewriters.keys()]) {
+    if (!liveKeys.has(key)) typewriters.delete(key);
+  }
+}
+
+function ensureTypewriterTimer() {
+  if (typewriterTimer != null) return;
+  typewriterTimer = window.setInterval(() => {
+    let dirty = false;
+    for (const tw of typewriters.values()) {
+      if (tw.shownLen < tw.target.length) {
+        tw.shownLen = Math.min(tw.target.length, tw.shownLen + TYPEWRITER_CHARS);
+        dirty = true;
+      }
+    }
+    const stillTyping = [...typewriters.values()].some((t) => t.shownLen < t.target.length);
+    if (dirty) render();
+    if (!stillTyping && typewriterTimer != null) {
+      window.clearInterval(typewriterTimer);
+      typewriterTimer = null;
+      // One last paint so the caret drops after catching up to a final.
+      if (dirty) {
+        /* render() already ran */
+      } else {
+        render();
+      }
+    }
+  }, TYPEWRITER_MS);
+}
+
+function renderTurn(r: TranscriptRow, displayText?: string, typing?: boolean): string {
+  const role = r.role || "user";
+  const kind =
+    r.type === "final" || r.final === true
+      ? "final"
+      : r.type === "partial" || r.partial === true
+        ? "partial"
+        : "final";
+  const label = role === "assistant" ? "Kaki" : "You";
+  const text = displayText != null ? displayText : r.text || "";
+  const caret = typing ? `<span class="caret" aria-hidden="true"></span>` : "";
+  const live =
+    !typing && kind === "partial" ? `<span class="live" aria-hidden="true"></span>` : "";
+  const clock = formatClock(r.ts);
+  const time = clock
+    ? `<time class="ts" datetime="${escapeAttr(r.ts || "")}">${escapeHtml(clock)}</time>`
+    : "";
+  return `<div class="turn ${kind} role-${escapeAttr(role)}${typing ? " typing" : ""}">
+    <div class="meta"><span class="who">${label}</span>${time}</div>
+    <div class="bubble">${escapeHtml(text)}${caret}${live}</div>
+  </div>`;
+}
+
+/** Show a pending row until Kaki starts streaming a reply. */
+function shouldShowPending(): boolean {
+  if (session.state !== "thinking" && !awaitingReply) return false;
+  const rows = coalesceTranscript(session.transcript || []);
+  let lastUserIdx = -1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if ((rows[i].role || "user") === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  if (lastUserIdx >= 0) {
+    for (let i = lastUserIdx + 1; i < rows.length; i++) {
+      if ((rows[i].role || "") === "assistant" && (rows[i].text || "").trim()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function pendingLabel(): string {
+  if (session.state === "thinking") return "Thinking…";
+  return "Working…";
 }
 
 function render() {
@@ -175,29 +403,52 @@ function render() {
           )
           .join("");
 
-  const displayRows = coalesceTranscript(session.transcript || []);
+  // Flat list: Answer above its Question, newest pair at top.
+  const displayTurns = flatDisplayTurns(coalesceTranscript(session.transcript || []));
+  const pending = shouldShowPending();
+  const liveTwKeys = new Set<string>();
+  const pendingTurn = pending
+    ? `<div class="turn pending role-assistant" aria-live="polite" aria-busy="true">
+         <div class="meta"><span class="who">Kaki</span><time class="ts">${escapeHtml(formatClock(new Date().toISOString()))}</time></div>
+         <div class="bubble pending-bubble">
+           <span class="spinner" aria-hidden="true"></span>
+           <span class="pending-text">${escapeHtml(pendingLabel())}</span>
+         </div>
+       </div>`
+    : "";
+
+  const turnsHtml = displayTurns
+    .map((r) => {
+      if ((r.role || "user") !== "assistant") return renderTurn(r);
+      const key = assistantTwKey(r);
+      liveTwKeys.add(key);
+      const isFinal = !(r.type === "partial" || r.partial === true);
+      syncTypewriter(key, r.text || "", isFinal);
+      const tw = typewriters.get(key)!;
+      const typing = tw.shownLen < tw.target.length || !tw.final;
+      return renderTurn(r, tw.target.slice(0, tw.shownLen), typing);
+    })
+    .join("");
+  pruneTypewriters(liveTwKeys);
   const lines =
-    displayRows.length === 0
+    displayTurns.length === 0 && !pending
       ? `<div class="empty">No transcript yet. Turn ON and speak, or Send text turn.</div>`
-      : displayRows
-          .map((r) => {
-            const role = r.role || "user";
-            const kind =
-              r.type === "final" || r.final === true
-                ? "final"
-                : r.type === "partial" || r.partial === true
-                  ? "partial"
-                  : "final";
-            const label = role === "assistant" ? "ME3" : "You";
-            const live = kind === "partial" ? `<span class="live" aria-hidden="true"></span>` : "";
-            return `<div class="turn ${kind} role-${escapeAttr(role)}"><span class="who">${label}</span><span class="bubble">${escapeHtml(
-              r.text || ""
-            )}${live}</span></div>`;
-          })
-          .join("");
+      : `${pendingTurn}${turnsHtml}`;
 
   const muted = !!session.mic_muted;
   const sessionOn = !!session.enabled && connected;
+
+  const toastHtml =
+    toasts.length === 0
+      ? ""
+      : `<div class="toast-stack" aria-live="polite">${toasts
+          .map(
+            (t) =>
+              `<div class="toast tone-${escapeAttr(t.tone)}" role="status">${escapeHtml(
+                t.text
+              )}</div>`
+          )
+          .join("")}</div>`;
 
   app.innerHTML = `
     <header class="top">
@@ -209,6 +460,7 @@ function render() {
         ${connected ? "Connected" : "Connecting…"}
       </p>
     </header>
+    ${toastHtml}
 
     <div class="layout">
       <aside class="col col-controls">
@@ -218,9 +470,11 @@ function render() {
           }>
             ${session.enabled ? "ON" : "OFF"}
           </button>
-          <div class="status-line state-${escapeAttr(session.state)}">status <strong>${escapeHtml(
-            session.state
-          )}</strong></div>
+          <div class="status-line state-${escapeAttr(session.state)}${
+            pending ? " pending" : ""
+          }">status <strong>${escapeHtml(session.state)}</strong>${
+            pending ? `<span class="spinner inline" aria-hidden="true"></span>` : ""
+          }</div>
         </div>
 
         <button
@@ -234,8 +488,8 @@ function render() {
         </button>
         <p class="mic-hint">${
           muted
-            ? "Capture stays running; ASR is digitally gated. TTS and text turns still work."
-            : "Listening for speech while session is ON."
+            ? "Mic muted for new questions — you can still barge in to stop Kaki mid-speech. Unmute to ask."
+            : "Listening while ON. Speak over Kaki to interrupt. Headphones improve ASR + barge-in."
         }</p>
 
         <div class="badges">${badges}</div>
@@ -263,7 +517,8 @@ function render() {
                   .slice(0, 6)
                   .map((j) => {
                     const waiting = j.status === "needs_input" || j.status === "needs_approval";
-                    return `<div class="job-card status-${escapeAttr(j.status)}">
+                    const flash = highlightJobId === j.id ? " flash" : "";
+                    return `<div class="job-card status-${escapeAttr(j.status)}${flash}">
                 <div><span class="who">${escapeHtml(j.status)}</span> ${escapeHtml(
                       (j.specification || j.id).slice(0, 80)
                     )}</div>
@@ -338,15 +593,22 @@ function render() {
   document.querySelector("#say")?.addEventListener("click", async () => {
     const text = window.prompt("User text turn");
     if (!text) return;
+    awaitingReply = true;
+    render();
     const token = getToken();
-    await fetch("/api/say", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ text }),
-    });
+    try {
+      await fetch("/api/say", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+    } catch {
+      awaitingReply = false;
+      render();
+    }
   });
   document.querySelector("#refresh")?.addEventListener("click", () => {
     send({ type: "get_session" });
@@ -381,6 +643,8 @@ function render() {
       void refreshTasks();
     });
   });
+
+  scrollTranscriptToLatest();
 }
 
 function escapeHtml(s: string): string {
@@ -396,8 +660,14 @@ function escapeAttr(s: string): string {
 }
 
 function applySession(payload: Partial<SessionPayload> & { type?: string }) {
+  const nextState = payload.state || "off";
+  // Drop optimistic flag once the server owns the turn (or session ends).
+  // Do not clear on plain "listening" — that can race before thinking starts.
+  if (nextState === "thinking" || nextState === "speaking" || nextState === "off") {
+    awaitingReply = false;
+  }
   session = {
-    state: payload.state || "off",
+    state: nextState,
     enabled: !!payload.enabled,
     readiness: payload.readiness || session.readiness,
     degraded: !!payload.degraded,
@@ -414,19 +684,54 @@ function onMessage(data: any) {
     applySession(data);
     void refreshTasks();
   } else if (data.type === "transcript") {
+    if ((data.role || "") === "assistant" && (data.text || "").trim()) {
+      awaitingReply = false;
+    }
     upsertTranscriptRow(data);
     render();
-    const el = document.querySelector("#transcript");
-    if (el) el.scrollTop = el.scrollHeight;
+  } else if (data.type === "turn_done" || data.type === "turn_cancelled" || data.type === "error") {
+    awaitingReply = false;
+    if (data.type === "error" && data.message) {
+      session.last_error = String(data.message);
+    }
+    render();
   } else if (data.type === "readiness") {
     session.readiness = data.readiness || session.readiness;
     render();
-  } else if (
-    data.type === "notification" ||
-    data.type === "notification_delivered" ||
-    data.type === "tool_result" ||
-    data.type === "job_update"
-  ) {
+  } else if (data.type === "notification") {
+    const msg = String(data.payload?.message || data.message || "").trim();
+    if (msg) {
+      const status = String(data.status || "");
+      const tone: Toast["tone"] =
+        status === "failed" ? "warn" : status === "completed" ? "ok" : "info";
+      pushToast(msg, tone, data.job_id ? String(data.job_id) : undefined);
+    }
+    void refreshTasks();
+  } else if (data.type === "notification_delivered" || data.type === "tool_result") {
+    void refreshTasks();
+  } else if (data.type === "job_update") {
+    const job = data.job || {};
+    const status = String(job.status || "");
+    // Fallback toast if a terminal update arrives without a separate notification.
+    if (
+      (status === "completed" || status === "failed") &&
+      !toasts.some((t) => t.jobId && job.id && t.jobId === String(job.id))
+    ) {
+      const label = String(job.specification || job.id || "job").split("\n")[0].slice(0, 72);
+      pushToast(
+        status === "completed" ? `Job finished: ${label}` : `Job failed: ${label}`,
+        status === "failed" ? "warn" : "ok",
+        job.id ? String(job.id) : undefined
+      );
+    } else if (job.id && (status === "completed" || status === "failed")) {
+      highlightJobId = String(job.id);
+      if (highlightTimer != null) window.clearTimeout(highlightTimer);
+      highlightTimer = window.setTimeout(() => {
+        highlightJobId = null;
+        highlightTimer = null;
+        render();
+      }, 8000);
+    }
     void refreshTasks();
   }
 }

@@ -94,8 +94,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "web_search",
         "description": (
             "Search the web via Tavily. Returns evidence envelopes with URL/title/content. "
-            "Cite sources; do not treat snippets as authority. For Philippine Senate/"
-            "election questions, clarify nationwide winners vs local vote leaders when ambiguous."
+            "Cite sources; do not treat snippets as authority. "
+            "If results are ambiguous or conflict, ask one short clarifying question."
         ),
         "input_schema": {
             "type": "object",
@@ -135,13 +135,22 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "jobs_submit",
         "description": (
-            "Submit a coding/build job to the OpenCode worker. Only one active job is allowed. "
-            "Returns a job id promptly; do not claim the work is finished until status is completed."
+            "Submit a coding/build job to the OpenCode worker. Call this whenever the owner "
+            "wants a site, website, landing page, app, or coding job built/created/started/"
+            "submitted, or says proceed/go ahead after agreeing on such work. Only one active "
+            "job is allowed — if busy, report that instead of pretending to submit. Returns a "
+            "job id promptly; do not claim the work is finished until jobs_status says completed."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "specification": {"type": "string"},
+                "specification": {
+                    "type": "string",
+                    "description": (
+                        "Clear build brief for the worker (what to build, key pages/features, "
+                        "and any owner constraints). Reconstruct from messy ASR if needed."
+                    ),
+                },
                 "instructions": {"type": "string"},
             },
             "required": ["specification"],
@@ -149,7 +158,11 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
     {
         "name": "jobs_status",
-        "description": "Get active/recent job status.",
+        "description": (
+            "Get the active job (if any) and recent jobs including completed/failed ones. "
+            "Jobs persist across chat restarts — use this when the owner asks what finished "
+            "or what was previously requested. Do not assume 'no jobs' without calling this."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {"job_id": {"type": "string"}},
@@ -189,7 +202,9 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "publish_validate",
         "description": (
-            "Validate a local site folder before GitHub Pages publish. "
+            "Validate a site folder before GitHub Pages publish. "
+            "source_dir is optional — if omitted, uses the latest completed job workspace "
+            "that contains index.html (or job_id / hint to pick one). "
             "Rejects .env, keys, tokens, and other private files."
         ),
         "input_schema": {
@@ -197,22 +212,33 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "properties": {
                 "source_dir": {
                     "type": "string",
-                    "description": "Local folder containing public HTML/CSS/JS/assets",
+                    "description": "Optional local folder; auto-resolved from completed jobs when omitted",
+                },
+                "job_id": {"type": "string", "description": "Optional completed job id to publish"},
+                "hint": {
+                    "type": "string",
+                    "description": "Optional keyword to match a job (e.g. games, portfolio)",
                 },
             },
-            "required": ["source_dir"],
         },
     },
     {
         "name": "publish_site",
         "description": (
-            "Publish a validated local site folder to the owner's GitHub Pages docs root. "
-            "Requires confirm=true after owner approval. Never publish secrets."
+            "Publish a site to the owner's GitHub Pages docs root. "
+            "source_dir is optional — omit it to auto-use the matching completed job workspace. "
+            "Requires confirm=true after owner approval. Never publish secrets. "
+            "Do not ask the owner for a folder path when a completed job workspace exists."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "source_dir": {"type": "string"},
+                "source_dir": {
+                    "type": "string",
+                    "description": "Optional; auto-resolved from completed jobs when omitted",
+                },
+                "job_id": {"type": "string"},
+                "hint": {"type": "string", "description": "Keyword to pick among jobs, e.g. games"},
                 "message": {"type": "string", "description": "Commit message"},
                 "confirm": {
                     "type": "boolean",
@@ -223,7 +249,6 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "description": "Optional text that should appear on the live Pages URL",
                 },
             },
-            "required": ["source_dir"],
         },
     },
     {

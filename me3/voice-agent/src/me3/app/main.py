@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import logging
 import os
 import sys
@@ -12,11 +13,30 @@ from me3.config import load_config, load_secrets, resolve_path
 
 logger = logging.getLogger("me3.app")
 
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
+LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+
+def _uvicorn_log_config() -> dict:
+    """Uvicorn access/error logs with timestamps (default uvicorn format has none)."""
+    from uvicorn.config import LOGGING_CONFIG
+
+    cfg = copy.deepcopy(LOGGING_CONFIG)
+    cfg["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"
+    cfg["formatters"]["default"]["datefmt"] = LOG_DATEFMT
+    cfg["formatters"]["access"]["fmt"] = (
+        '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
+    cfg["formatters"]["access"]["datefmt"] = LOG_DATEFMT
+    return cfg
+
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        format=LOG_FORMAT,
+        datefmt=LOG_DATEFMT,
+        force=True,
     )
     parser = argparse.ArgumentParser(description="ME3 voice-agent")
     parser.add_argument("--serve", action="store_true", help="Run session UI backend")
@@ -72,7 +92,13 @@ def main(argv: list[str] | None = None) -> int:
     port = args.port or cfg.ui.port
     app = create_app()
     logger.info("serving session UI backend on http://%s:%s", host, port)
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level="info",
+        log_config=_uvicorn_log_config(),
+    )
     return 0
 
 

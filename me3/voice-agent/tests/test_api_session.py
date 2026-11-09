@@ -69,3 +69,18 @@ def test_session_toggle(client):
     r = client.post("/api/session", headers=headers, json={"enabled": True})
     assert r.status_code == 200
     assert r.json()["enabled"] is True
+
+
+def test_session_event_helper_accepts_snapshot():
+    from me3.app.server import _session_event
+    from me3.session.controller import SessionController
+
+    ctrl = SessionController()
+    ctrl.start_backend = MagicMock()
+    ctrl.shutdown = MagicMock()
+    payload = _session_event(ctrl.snapshot())
+    assert payload["type"] == "session"
+    assert "enabled" in payload
+    assert "state" in payload
+    # Must not raise TypeError when building JSON-like dict
+    assert isinstance(payload, dict)

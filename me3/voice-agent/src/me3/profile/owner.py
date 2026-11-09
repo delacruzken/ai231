@@ -114,7 +114,40 @@ def format_owner_for_prompt(profile: dict[str, Any] | None) -> str:
         for k in ("display_name", "headline", "links", "about", "locale")
         if k in public and public[k]
     }
-    return (
-        "Owner approved public profile (use only these fields; never invent private details):\n"
-        + json.dumps(safe, ensure_ascii=False)
+    prefs = profile.get("preferences") or {}
+    lines = [
+        "You are speaking with the session owner. Treat 'me'/'my'/'I' as this person — "
+        "not other web-search name matches.",
+        "Owner approved public profile (use only these fields; never invent private details):",
+        json.dumps(safe, ensure_ascii=False),
+    ]
+    if prefs:
+        lines.append(
+            "Owner preferences (follow these when relevant): "
+            + json.dumps(prefs, ensure_ascii=False)
+        )
+    return "\n".join(lines)
+
+
+def format_publication_for_prompt(target: dict[str, Any] | None) -> str:
+    if not target or not target.get("configured"):
+        return (
+            "Publication target: not configured. If the owner asks to publish, say GitHub "
+            "publication env is missing (owner/repo/PAT)."
+        )
+    owner = target.get("owner") or ""
+    repo = target.get("repo") or ""
+    branch = target.get("branch") or "main"
+    site_root = target.get("site_root") or "docs"
+    pages_url = target.get("pages_url") or ""
+    parts = [
+        f"Publication target is already configured: GitHub {owner}/{repo} "
+        f"(branch {branch}, site root {site_root})."
+    ]
+    if pages_url:
+        parts.append(f"Pages URL: {pages_url}.")
+    parts.append(
+        "Do not ask for the GitHub account or repo URL. Call publish_status if you need "
+        "live Pages health. Still require explicit owner confirmation before publish_site."
     )
+    return " ".join(parts)

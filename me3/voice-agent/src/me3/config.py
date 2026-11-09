@@ -39,9 +39,21 @@ class AudioConfig(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    silence_normal_ms: int = 600
-    silence_incomplete_ms: int = 1200
-    silence_clarification_ms: int = 2000
+    silence_normal_ms: int = 400
+    silence_incomplete_ms: int = 900
+    silence_clarification_ms: int = 1600
+    # After TTS, ignore mic briefly so laptop speaker→mic echo is not transcribed.
+    echo_hangover_ms: int = 450
+    # When True, do not feed ASR while bot audio is playing (laptop no-AEC default).
+    # Sustained loud speech still barge-in via VAD (see barge_in_*).
+    gate_asr_while_speaking: bool = True
+    # Laptop barge-in: VAD and/or energy spike over TTS echo baseline.
+    barge_in_vad_threshold: float = 0.45
+    barge_in_hold_ms: int = 120
+    barge_in_hangover_ms: int = 200
+    # Mic RMS must exceed echo EMA * ratio (and absolute floor) to count as barge.
+    barge_in_energy_ratio: float = 2.2
+    barge_in_energy_floor: float = 0.018
     ack_delay_ms: int = 700
     backchannel_enabled: bool = False
     backchannel_cooldown_ms: int = 10000

@@ -54,6 +54,7 @@ class OwnerProfileBody(BaseModel):
     about: str | None = None
     links: list[str] | dict | None = None
     locale: str | None = None
+    preferences: dict | None = None
     approved: bool = True
 
 
@@ -80,6 +81,17 @@ def _token_ok(provided: str | None, required: str, require: bool) -> bool:
     if not required:
         return False
     return bool(provided) and provided == required
+
+
+def _session_event(snap: Any) -> dict[str, Any]:
+    """SessionSnapshot → WS/JSON payload (never unpack the dataclass itself)."""
+    if hasattr(snap, "as_dict"):
+        data = snap.as_dict()
+    elif isinstance(snap, dict):
+        data = snap
+    else:
+        raise TypeError(f"expected SessionSnapshot or dict, got {type(snap)!r}")
+    return {"type": "session", **data}
 
 
 def create_app(controller: SessionController | None = None) -> FastAPI:
@@ -199,11 +211,18 @@ def create_app(controller: SessionController | None = None) -> FastAPI:
 
     @app.put("/api/profile")
     def put_profile(body: OwnerProfileBody, _: None = Depends(auth)):
-        public = {k: v for k, v in body.model_dump().items() if k != "approved" and v is not None}
-        profile = ctrl.owner_store.set_public(public, approved=body.approved)
+        dumped = body.model_dump()
+        preferences = dumped.pop("preferences", None)
+        approved = bool(dumped.pop("approved", True))
+        public = {k: v for k, v in dumped.items() if v is not None}
+        profile = ctrl.owner_store.set_public(
+            public,
+            preferences=preferences,
+            approved=approved,
+        )
         if ctrl.conversation:
             ctrl.conversation.refresh_system_prompt()
-        if body.approved and public:
+        if approved and public:
             cfg.pending.owner_public_profile = False
         return profile
 
@@ -311,19 +330,19 @@ def create_app(controller: SessionController | None = None) -> FastAPI:
             return
         await websocket.accept()
         clients.add(websocket)
-        await websocket.send_json({"type": "session", **ctrl.snapshot().as_dict()})
+        await websocket.send_json(_session_event(ctrl.snapshot()))
         try:
             while True:
                 msg = await websocket.receive_json()
                 mtype = msg.get("type")
                 if mtype == "set_enabled":
                     snap = await asyncio.to_thread(ctrl.set_enabled, bool(msg.get("enabled")))
-                    await websocket.send_json({"type": "session", **snap})
+                    await websocket.send_json(_session_event(snap))
                 elif mtype == "set_mic_muted":
                     snap = await asyncio.to_thread(
                         ctrl.set_mic_muted, bool(msg.get("muted", msg.get("mic_muted")))
                     )
-                    await websocket.send_json({"type": "session", **snap})
+                    await websocket.send_json(_session_event(snap))
                 elif mtype == "probe":
                     try:
                         uid = await asyncio.to_thread(
@@ -335,7 +354,7 @@ def create_app(controller: SessionController | None = None) -> FastAPI:
                 elif mtype == "ping":
                     await websocket.send_json({"type": "pong"})
                 elif mtype == "get_session":
-                    await websocket.send_json({"type": "session", **ctrl.snapshot().as_dict()})
+                    await websocket.send_json(_session_event(ctrl.snapshot()))
         except WebSocketDisconnect:
             pass
         finally:
@@ -346,7 +365,11 @@ def create_app(controller: SessionController | None = None) -> FastAPI:
 
         @app.get("/")
         def index():
-            return FileResponse(UI_DIST / "index.html")
+            # Always revalidate shell HTML so hashed asset refs stay current.
+            return FileResponse(
+                UI_DIST / "index.html",
+                headers={"Cache-Control": "no-cache"},
+            )
 
     return app
 

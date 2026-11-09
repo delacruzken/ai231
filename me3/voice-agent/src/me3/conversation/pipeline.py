@@ -75,11 +75,33 @@ class ConversationOrchestrator:
             )
         )
         self.active_turn_id: str | None = None
+        self.active_user_text: str | None = None
+        self.active_llm_speculative: bool = False
         self._lock = threading.RLock()
         self._worker: threading.Thread | None = None
         self._assistant_buf = ""
+        self._last_commit_norm = ""
+        self._last_commit_mono = 0.0
+        # Cover full think+speak for short answers; screenshots showed ~7–8s dupes.
+        self._duplicate_commit_window_s = 12.0
 
     def refresh_system_prompt(self) -> None:
+        from me3.config import load_secrets
+
+        secrets = load_secrets()
+        owner = (secrets.github_owner or "").strip()
+        repo = (secrets.github_repo or "").strip()
+        pages = (secrets.github_pages_url or "").strip()
+        if not pages and owner and repo:
+            pages = f"https://{owner}.github.io/{repo}/"
+        publication_target = {
+            "configured": bool(owner and repo and (secrets.github_pat or "").strip()),
+            "owner": owner,
+            "repo": repo,
+            "branch": (secrets.github_branch or "main").strip(),
+            "site_root": (secrets.github_site_root or "docs").strip(),
+            "pages_url": pages,
+        }
         self.system_prompt = build_system_prompt(
             timezone=self.cfg.session.timezone,
             locale=self.cfg.session.locale,
@@ -87,6 +109,7 @@ class ConversationOrchestrator:
             retrieval_provider=getattr(self.tasks, "retrieval_provider", None),
             delegation_provider=getattr(self.delegation, "provider", None) if self.delegation else None,
             publication_provider=getattr(self.publication, "provider", None) if self.publication else None,
+            publication_target=publication_target,
         )
 
     def reset_listening(self) -> None:
@@ -98,6 +121,8 @@ class ConversationOrchestrator:
         with self._lock:
             tid = self.active_turn_id
             self.active_turn_id = None
+            self.active_user_text = None
+            self.active_llm_speculative = False
         if tid:
             self.llm.cancel(tid)
         self.cancel_speech()
@@ -114,7 +139,53 @@ class ConversationOrchestrator:
         self.overlap.on_partial(text)
 
     def on_asr_final(self, text: str) -> None:
-        self.turn_taker.on_partial(text)
+        """Confirm or correct a speculative silence-commit; never re-arm turn-taker.
+
+        Late Zipformer finals often arrive after the LLM turn already finished.
+        Feeding those into ``turn_taker.on_partial`` re-seeded the same utterance
+        and caused a second commit ~silence_normal_ms later (duplicate Q&A).
+        """
+        text = (text or "").strip()
+        if not text:
+            return
+        with self._lock:
+            tid = self.active_turn_id
+            committed = self.active_user_text
+            speculative = self.active_llm_speculative
+            last_norm = self._last_commit_norm
+            last_mono = self._last_commit_mono
+        now = time.monotonic()
+        norm = re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
+
+        # No in-flight speculative turn: ignore finals that match the last commit
+        # (stale endpoint after speak) and do not seed turn_taker.
+        if not tid or not speculative:
+            if (
+                norm
+                and last_norm
+                and (
+                    norm == last_norm
+                    or _asr_text_compatible(last_norm, norm)
+                    or _asr_text_compatible(norm, last_norm)
+                )
+                and (now - last_mono) < self._duplicate_commit_window_s
+            ):
+                logger.info("ignore stale asr_final matching last commit: %s", text[:80])
+                self.turn_taker.reset()
+                return
+            # Genuinely new utterance finalized while idle — let silence clock own commit
+            # via partials; a lone final should not immediately re-commit.
+            self.turn_taker.on_partial(text)
+            return
+
+        if _asr_text_compatible(committed or "", text):
+            # Keep the early call; clear turn-taker so the final cannot re-commit.
+            self.active_llm_speculative = False
+            self.turn_taker.reset()
+            return
+        self.cancel_active(reason="asr_final_correction")
+        self.set_state("listening")
+        self.commit_user_turn(text, speculative=False)
 
     def tick(self, *, enabled: bool, state: str) -> None:
         """Called from session pump while ON."""
@@ -126,7 +197,8 @@ class ConversationOrchestrator:
                 self.speak("Could you finish that thought?", "clarify")
                 self.on_event({"type": "clarify", "silence_ms": decision.silence_ms})
             elif decision.action == "commit" and self.turn_taker.partial_text:
-                self.commit_user_turn(self.turn_taker.partial_text)
+                # Early commit on silence+partial: speculative until asr_final confirms.
+                self.commit_user_turn(self.turn_taker.partial_text, speculative=True)
         elif state == "thinking":
             phrase = self.acks.should_ack()
             if phrase:
@@ -158,19 +230,64 @@ class ConversationOrchestrator:
         self.cancel_speech()
         self.on_event({"type": "overlap", "action": "pause"})
 
-    def commit_user_turn(self, text: str) -> str:
+    def commit_user_turn(self, text: str, *, speculative: bool = False) -> str:
         text = text.strip()
         if not text:
             return ""
-        turn_id = str(uuid4())
+        norm = re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
+        now = time.monotonic()
         with self._lock:
+            # Drop near-duplicate commits (silence+ASR final, or post-TTS re-endpoint).
+            if norm and self._last_commit_norm and (now - self._last_commit_mono) < self._duplicate_commit_window_s:
+                if (
+                    norm == self._last_commit_norm
+                    or _asr_text_compatible(self._last_commit_norm, norm)
+                    or _asr_text_compatible(norm, self._last_commit_norm)
+                ):
+                    logger.info(
+                        "skip duplicate commit within %.0fs: %s",
+                        self._duplicate_commit_window_s,
+                        text[:80],
+                    )
+                    if self.active_turn_id and self.active_llm_speculative and not speculative:
+                        self.active_llm_speculative = False
+                    self.turn_taker.reset()
+                    return self.active_turn_id or ""
+            if self.active_turn_id and self.active_user_text:
+                active_norm = re.sub(r"[^a-z0-9\s]", "", self.active_user_text.lower()).strip()
+                if norm and active_norm and (
+                    norm == active_norm
+                    or _asr_text_compatible(active_norm, norm)
+                    or _asr_text_compatible(norm, active_norm)
+                ):
+                    logger.info("skip commit; already answering same utterance")
+                    if speculative is False:
+                        self.active_llm_speculative = False
+                    self.turn_taker.reset()
+                    return self.active_turn_id
+            turn_id = str(uuid4())
             self.active_turn_id = turn_id
+            self.active_user_text = text
+            self.active_llm_speculative = speculative
+            self._last_commit_norm = norm
+            self._last_commit_mono = now
         self.turn_taker.reset()
-        self.memory.add_turn("user", text, meta={"source": "asr"})
+        self.memory.add_turn(
+            "user",
+            text,
+            meta={"source": "asr_partial" if speculative else "asr_final"},
+        )
         self.on_event({"type": "transcript", "role": "user", "text": text, "turn_id": turn_id})
         self.set_state("thinking")
         self.acks.on_operation_started()
-        self.on_event({"type": "turn_started", "turn_id": turn_id, "user": text})
+        self.on_event(
+            {
+                "type": "turn_started",
+                "turn_id": turn_id,
+                "user": text,
+                "speculative": speculative,
+            }
+        )
 
         def tool_executor(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             out = dispatch_tool(
@@ -196,7 +313,14 @@ class ConversationOrchestrator:
                 sentence_buf = ""
                 first = True
                 first_token = True
-                mark("llm_request", messages=len(messages), chars=sum(len(m.get("content") or "") for m in messages))
+                mark_kwargs: dict[str, Any] = {
+                    "messages": len(messages),
+                    "chars": sum(len(m.get("content") or "") for m in messages),
+                }
+                if speculative:
+                    # fdbench ignores speculative llm_request when pairing asr_final for WER.
+                    mark_kwargs["speculative"] = True
+                mark("llm_request", **mark_kwargs)
                 for chunk in self.llm.stream(
                     messages,
                     self.system_prompt,
@@ -274,9 +398,25 @@ class ConversationOrchestrator:
                 with self._lock:
                     if self.active_turn_id == turn_id:
                         self.active_turn_id = None
+                        self.active_user_text = None
+                        self.active_llm_speculative = False
                 self.set_state("listening")
                 self.turn_taker.reset()
 
         self._worker = threading.Thread(target=worker, name=f"llm-{turn_id[:8]}", daemon=True)
         self._worker.start()
         return turn_id
+
+
+def _asr_text_compatible(committed: str, final: str) -> bool:
+    """True when final transcript is the same utterance as the early commit (allowing completion)."""
+    a = re.sub(r"[^a-z0-9\s]", "", (committed or "").lower()).split()
+    b = re.sub(r"[^a-z0-9\s]", "", (final or "").lower()).split()
+    if not a or not b:
+        return not a and not b
+    if a == b:
+        return True
+    # Partial was a prefix of the final (common when silence fires early).
+    if len(a) <= len(b) and b[: len(a)] == a:
+        return True
+    return False
