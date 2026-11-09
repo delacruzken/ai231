@@ -117,6 +117,12 @@ class SessionController:
         self._speech_prob_thresh = self.cfg.speech.vad_threshold
         self._vad_in_speech = False
         self._audio_out_marked = False
+        self._echo_gate_until = 0.0
+        self._was_gating_asr = False
+        self._barge_speech_ms = 0.0
+        self._barge_last_mono: float | None = None
+        self._echo_rms_ema: float = 0.0
+        self._echo_rms_ready: bool = False
 
         self.capture: Any = None
         self.playback: Any = None
@@ -162,9 +168,14 @@ class SessionController:
 
     def _upsert_transcript(self, event: dict[str, Any]) -> None:
         """Keep one live partial per role; replace it when the final arrives."""
+        from datetime import datetime, timezone
+
         row = {k: event[k] for k in event if k != "t_mono"}
         is_partial = row.get("type") == "partial" or row.get("partial") is True
         role = row.get("role") or "user"
+        now_ts = datetime.now(timezone.utc).isoformat()
+        if not row.get("ts"):
+            row["ts"] = now_ts
         with self._lock:
             if self.transcript:
                 last = self.transcript[-1]
@@ -172,9 +183,33 @@ class SessionController:
                 last_role = last.get("role") or "user"
                 if last_partial and last_role == role:
                     if is_partial:
+                        # Keep original start time; refresh content.
+                        row = {**row, "ts": last.get("ts") or row["ts"]}
                         self.transcript[-1] = row
                     else:
-                        self.transcript[-1] = {**row, "type": "final", "partial": False, "final": True}
+                        self.transcript[-1] = {
+                            **row,
+                            "type": "final",
+                            "partial": False,
+                            "final": True,
+                            "ts": last.get("ts") or row["ts"],
+                        }
+                    return
+                # Dedupe identical consecutive finals (ASR final + silence-commit).
+                if (
+                    not is_partial
+                    and not last_partial
+                    and last_role == role
+                    and _norm_utt(last.get("text")) == _norm_utt(row.get("text"))
+                ):
+                    self.transcript[-1] = {
+                        **last,
+                        **row,
+                        "type": "final",
+                        "partial": False,
+                        "final": True,
+                        "ts": last.get("ts") or row["ts"],
+                    }
                     return
             if not is_partial:
                 row = {**row, "type": row.get("type") or "final", "final": True}
@@ -312,14 +347,54 @@ class SessionController:
         self._emit(event)
         job = event.get("job") or {}
         status = job.get("status")
+        if not status:
+            return
+        with self._lock:
+            enabled = self.enabled
+        # Spoken + UI cues for terminal / blocking job states (same path as timer alerts).
         if status in ("needs_input", "needs_approval") and job.get("pending_user_request"):
-            with self._lock:
-                enabled = self.enabled
+            msg = f"Job needs you: {job['pending_user_request']}"
+            self._emit(
+                {
+                    "type": "notification",
+                    "kind": "job",
+                    "status": status,
+                    "job_id": job.get("id"),
+                    "payload": {"message": msg},
+                }
+            )
             if enabled:
-                self._speak(
-                    f"Job needs you: {job['pending_user_request']}",
-                    "notification",
-                )
+                self._speak(msg, "notification")
+            return
+        if status == "completed":
+            label = (job.get("specification") or "your job").strip().split("\n", 1)[0][:80]
+            msg = f"Job finished: {label}."
+            self._emit(
+                {
+                    "type": "notification",
+                    "kind": "job",
+                    "status": status,
+                    "job_id": job.get("id"),
+                    "payload": {"message": msg},
+                }
+            )
+            if enabled:
+                self._speak(msg, "notification")
+            return
+        if status == "failed":
+            detail = (job.get("outcome") or "unknown error").strip().split("\n", 1)[0][:120]
+            msg = f"Job failed: {detail}."
+            self._emit(
+                {
+                    "type": "notification",
+                    "kind": "job",
+                    "status": status,
+                    "job_id": job.get("id"),
+                    "payload": {"message": msg},
+                }
+            )
+            if enabled:
+                self._speak(msg, "notification")
 
     def _on_timer_notification(self, notif: dict[str, Any]) -> None:
         self._emit({"type": "notification", **notif})
@@ -349,14 +424,11 @@ class SessionController:
             # clarify may speak briefly; notifications only while ON
             if not self.enabled and kind not in ("clarify",):
                 return
+            # After barge-in, drop late assistant audio from the cancelled turn.
+            if kind == "assistant" and self.conversation is not None:
+                if self.conversation.active_turn_id is None and self.state == SessionState.LISTENING:
+                    return
             gen = self.utterance_generation
-            if kind == "assistant" and self.state not in (
-                SessionState.SPEAKING,
-                SessionState.THINKING,
-                SessionState.LISTENING,
-            ):
-                # allow first sentence to move into speaking via set_state
-                pass
         try:
             mark("tts_request")
             samples, rate = self.tts.synthesize_to_array(text)
@@ -369,9 +441,18 @@ class SessionController:
                 return
             if not self.enabled and kind not in ("clarify",):
                 return
+            if kind == "assistant" and self.conversation is not None:
+                if self.conversation.active_turn_id is None and self.state == SessionState.LISTENING:
+                    return
             if not self._audio_out_marked:
                 mark("audio_out")
                 self._audio_out_marked = True
+            # Keep ASR gated while this utterance plays (laptop speaker→mic).
+            hang_ms = int(getattr(self.cfg.session, "echo_hangover_ms", 450) or 0)
+            self._echo_gate_until = max(
+                self._echo_gate_until,
+                time.monotonic() + max(0.05, len(samples) / float(rate or 22050)) + hang_ms / 1000.0,
+            )
             self.playback.play(samples, rate, generation=gen)
 
     def _cancel_speech(self) -> None:
@@ -410,15 +491,19 @@ class SessionController:
             if evt.type == "partial":
                 self.conversation.on_asr_partial(evt.text)
             else:
+                # Speculative silence-commit confirmation / correction lives here.
+                # Do NOT unconditionally cancel THINKING — that duplicated turns.
                 self.conversation.on_asr_final(evt.text)
             if state == SessionState.SPEAKING:
-                # barge-in → overlap
+                # barge-in → overlap (ASR path; VAD barge-in also calls begin_overlap)
                 self.conversation.begin_overlap()
-            elif state == SessionState.THINKING:
-                # user correction while thinking — cancel generation
-                self.conversation.cancel_active(reason="user_correction")
-                self._set_state("listening")
-                self.conversation.on_asr_partial(evt.text)
+            elif state == SessionState.THINKING and evt.type == "partial":
+                # Mid-think correction only when new speech clearly diverges.
+                active = (self.conversation.active_user_text or "").strip()
+                if active and not _utt_compatible(active, evt.text or ""):
+                    self.conversation.cancel_active(reason="user_correction")
+                    self._set_state("listening")
+                    self.conversation.on_asr_partial(evt.text)
 
     def start_backend(self) -> None:
         self.probe_readiness()
@@ -561,10 +646,141 @@ class SessionController:
                 continue
             if not enabled:
                 continue
-            # Digital mute: keep capture/device path alive, do not feed ASR/VAD
+            gating = self._echo_gate_active(state)
+            # Digital mute blocks normal ASR, but still allow barge-in to stop TTS.
+            if muted and not gating:
+                continue
+            if gating:
+                if self._watch_barge_in(chunk, state):
+                    continue
+                self._vad_buf = np.zeros(0, dtype=np.float32)
+                self._vad_in_speech = False
+                self._was_gating_asr = True
+                continue
+            self._barge_speech_ms = 0.0
+            self._barge_last_mono = None
+            self._echo_rms_ema = 0.0
+            self._echo_rms_ready = False
             if muted:
                 continue
+            if self._was_gating_asr:
+                # Fresh listen window after echo gate; drop leftover ASR segment/partials.
+                self._was_gating_asr = False
+                self._vad_buf = np.zeros(0, dtype=np.float32)
+                if self.asr:
+                    try:
+                        self.asr.reset_segment()
+                    except Exception:
+                        logger.exception("asr reset after echo gate failed")
+                if self.conversation:
+                    self.conversation.turn_taker.reset()
             self._forward_asr(chunk, state)
+
+    def _echo_gate_active(self, state: SessionState) -> bool:
+        """Laptop without AEC: ignore mic while the bot is talking / audio is draining.
+
+        Also gate during THINKING so Zipformer cannot endpoint the just-committed
+        utterance again and re-arm a duplicate turn.
+        """
+        if not bool(getattr(self.cfg.session, "gate_asr_while_speaking", True)):
+            return False
+        now = time.monotonic()
+        playing = False
+        if self.playback is not None:
+            try:
+                playing = float(self.playback.queue_seconds()) > 0.04
+            except Exception:
+                playing = False
+        if playing or state in (SessionState.SPEAKING, SessionState.THINKING):
+            hang_ms = int(getattr(self.cfg.session, "echo_hangover_ms", 450) or 0)
+            self._echo_gate_until = max(self._echo_gate_until, now + hang_ms / 1000.0)
+            return True
+        # Allow ASR during overlap_paused so steering partials can be classified.
+        if state == SessionState.OVERLAP_PAUSED:
+            return False
+        return now < self._echo_gate_until
+
+    def _watch_barge_in(self, chunk: np.ndarray, state: SessionState) -> bool:
+        """Hard interrupt when the user talks over TTS (VAD and/or energy spike)."""
+        playing = False
+        if self.playback is not None:
+            try:
+                playing = float(self.playback.queue_seconds()) > 0.04
+            except Exception:
+                playing = False
+        if state not in (SessionState.SPEAKING, SessionState.THINKING) and not playing:
+            self._barge_speech_ms = 0.0
+            self._barge_last_mono = None
+            self._echo_rms_ema = 0.0
+            self._echo_rms_ready = False
+            return False
+
+        thr = float(getattr(self.cfg.session, "barge_in_vad_threshold", 0.45) or 0.45)
+        hold_ms = int(getattr(self.cfg.session, "barge_in_hold_ms", 120) or 120)
+        ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 2.2) or 2.2)
+        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.018) or 0.018)
+
+        self._vad_buf = np.concatenate([self._vad_buf, chunk.astype(np.float32, copy=False)])
+        fired = False
+        while len(self._vad_buf) >= WINDOW:
+            frame = self._vad_buf[:WINDOW]
+            self._vad_buf = self._vad_buf[WINDOW:]
+            frame_ms = (WINDOW / 16000.0) * 1000.0
+            rms = float(np.sqrt(np.mean(np.square(frame)) + 1e-12))
+
+            # Track TTS→mic echo baseline; barge when mic gets clearly louder.
+            if not self._echo_rms_ready:
+                self._echo_rms_ema = rms
+                self._echo_rms_ready = True
+            else:
+                # Adapt baseline slowly while quiet; freeze when a spike is present.
+                baseline = max(self._echo_rms_ema, floor)
+                if rms < baseline * 1.35:
+                    self._echo_rms_ema = 0.92 * self._echo_rms_ema + 0.08 * rms
+
+            energy_hit = rms >= max(floor, self._echo_rms_ema * ratio)
+
+            vad_hit = False
+            if self.vad:
+                try:
+                    vad_hit = self.vad.prob(frame) >= thr
+                except Exception:
+                    vad_hit = False
+
+            if energy_hit or vad_hit:
+                self._barge_speech_ms += frame_ms
+            else:
+                self._barge_speech_ms = max(0.0, self._barge_speech_ms - frame_ms * 0.6)
+
+            if self._barge_speech_ms >= hold_ms:
+                fired = True
+                break
+        if not fired:
+            return False
+        self._hard_barge_in(self._barge_speech_ms)
+        return True
+
+    def _hard_barge_in(self, held_ms: float) -> None:
+        """Stop TTS + cancel the LLM turn immediately so the user can take the floor."""
+        from me3.benchmark.marks import mark
+
+        mark("interrupted")
+        logger.info("barge-in hard stop after %.0fms user speech", held_ms)
+        self._barge_speech_ms = 0.0
+        self._barge_last_mono = None
+        self._echo_rms_ema = 0.0
+        self._echo_rms_ready = False
+        hang = int(getattr(self.cfg.session, "barge_in_hangover_ms", 200) or 200)
+        self._echo_gate_until = time.monotonic() + hang / 1000.0
+        self._was_gating_asr = True
+        self._vad_buf = np.zeros(0, dtype=np.float32)
+        self._vad_in_speech = False
+        self._cancel_speech()
+        if self.conversation:
+            self.conversation.cancel_active(reason="barge_in")
+            self.conversation.overlap.reset()
+            self.conversation.turn_taker.reset()
+        self._set_state("listening")
 
     def _forward_asr(self, chunk: np.ndarray, state: SessionState) -> None:
         if not self.asr:
@@ -591,8 +807,27 @@ class SessionController:
                 self._vad_in_speech = False
             if speech and self.conversation:
                 self.conversation.on_user_speech()
-            # Always feed ASR while ON so finals/partials update (session gate already applied)
             try:
                 self.asr.accept_pcm(frame, block=True)
             except Exception:
                 logger.exception("asr accept failed")
+
+
+def _norm_utt(text: Any) -> str:
+    import re
+
+    return re.sub(r"[^a-z0-9\s]", "", str(text or "").lower()).strip()
+
+
+def _utt_compatible(committed: str, incoming: str) -> bool:
+    a = _norm_utt(committed).split()
+    b = _norm_utt(incoming).split()
+    if not a or not b:
+        return not a and not b
+    if a == b:
+        return True
+    if len(a) <= len(b) and b[: len(a)] == a:
+        return True
+    if len(b) <= len(a) and a[: len(b)] == b:
+        return True
+    return False

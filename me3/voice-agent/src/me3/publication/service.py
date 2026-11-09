@@ -131,11 +131,14 @@ class PublicationService:
 
     def _dispatch(self, tool: str, *, meta: RequestMeta, **kwargs: Any) -> dict[str, Any]:
         if tool == "publish.validate":
-            source = kwargs.get("source_dir") or kwargs.get("path") or ""
-            if not source:
-                raise ValueError("source_dir is required")
+            source = self._resolve_source_dir(
+                kwargs.get("source_dir") or kwargs.get("path") or "",
+                job_id=kwargs.get("job_id"),
+                hint=kwargs.get("hint") or kwargs.get("query") or "",
+            )
             report = validate_source(Path(source))
             report["provider"] = self.provider
+            report["source_dir"] = source
             return report
         if tool == "publish.status":
             pub_id = kwargs.get("publication_id") or kwargs.get("id")
@@ -157,8 +160,43 @@ class PublicationService:
                 confirm=bool(kwargs.get("confirm", False)),
                 expect_substring=kwargs.get("expect_substring"),
                 idempotency_key=meta.idempotency_key,
+                job_id=kwargs.get("job_id"),
+                hint=kwargs.get("hint") or kwargs.get("query") or "",
             )
         raise ValueError(f"unsupported tool: {tool}")
+
+    def _resolve_source_dir(
+        self,
+        source_dir: str,
+        *,
+        job_id: str | None = None,
+        hint: str = "",
+    ) -> str:
+        """Prefer explicit path; otherwise pick a completed job workspace with index.html."""
+        raw = (source_dir or "").strip()
+        if raw:
+            src = Path(raw)
+            if not src.is_absolute():
+                src = (ROOT / src).resolve()
+            else:
+                src = src.resolve()
+            if not src.is_dir():
+                raise ValueError(f"source_dir is not a directory: {src}")
+            return str(src)
+
+        candidates = _completed_job_workspaces(job_id=job_id, hint=hint)
+        if not candidates:
+            raise ValueError(
+                "No publishable job workspace found. Complete a build job first, "
+                "or pass source_dir explicitly."
+            )
+        chosen = candidates[0]
+        logger.info(
+            "auto-resolved publish source_dir=%s job=%s",
+            chosen["workspace_path"],
+            chosen.get("id"),
+        )
+        return chosen["workspace_path"]
 
     def publish_site(
         self,
@@ -168,14 +206,11 @@ class PublicationService:
         confirm: bool = False,
         expect_substring: str | None = None,
         idempotency_key: str | None = None,
+        job_id: str | None = None,
+        hint: str = "",
     ) -> dict[str, Any]:
-        if not (source_dir or "").strip():
-            raise ValueError("source_dir is required")
-        src = Path(source_dir)
-        if not src.is_absolute():
-            src = (ROOT / src).resolve()
-        else:
-            src = src.resolve()
+        resolved = self._resolve_source_dir(source_dir, job_id=job_id, hint=hint)
+        src = Path(resolved)
 
         # Always validate first (also surfaces private-data rejects)
         report = validate_source(src)
@@ -196,10 +231,12 @@ class PublicationService:
                 return {"publication": existing, "idempotent_replay": True, "provider": self.provider}
 
         result = self.backend.publish_directory(src, message=message, confirm=True)
+        # Best-effort Pages probe only — do not block the voice turn for GH build lag.
         pages_check = self.backend.validate_pages(
             expect_substring=expect_substring,
-            retries=2 if self.provider == "github" else 1,
-            delay_s=2.0 if self.provider == "github" else 0.0,
+            retries=1,
+            delay_s=0.0,
+            timeout_s=6.0,
         )
         pub_id = uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
@@ -286,6 +323,63 @@ class PublicationService:
             )
             row = cur.fetchone()
             return dict(row) if row else None
+
+
+def _completed_job_workspaces(
+    *,
+    job_id: str | None = None,
+    hint: str = "",
+) -> list[dict[str, Any]]:
+    """Completed jobs whose workspace contains index.html, newest first."""
+    from me3.state.db import connect, database_path
+
+    hint_l = (hint or "").lower().strip()
+    jid = (job_id or "").strip()
+    out: list[dict[str, Any]] = []
+    try:
+        conn = connect(database_path())
+    except Exception:
+        logger.exception("cannot open job db for publish resolve")
+        return out
+    try:
+        if jid:
+            rows = conn.execute(
+                "SELECT id, specification, workspace_path, status FROM jobs WHERE id = ?",
+                (jid,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, specification, workspace_path, status
+                FROM jobs
+                WHERE status = 'completed'
+                ORDER BY updated_at DESC
+                LIMIT 20
+                """
+            ).fetchall()
+        for row in rows:
+            ws = Path(str(row["workspace_path"] or "")).expanduser()
+            if not ws.is_dir() or not (ws / "index.html").is_file():
+                continue
+            out.append(
+                {
+                    "id": row["id"],
+                    "specification": str(row["specification"] or ""),
+                    "workspace_path": str(ws.resolve()),
+                    "status": row["status"],
+                }
+            )
+        if not hint_l:
+            return out
+        matched = [
+            i
+            for i in out
+            if hint_l in (i["specification"] or "").lower() or hint_l in i["workspace_path"].lower()
+        ]
+        rest = [i for i in out if i not in matched]
+        return matched + rest
+    finally:
+        conn.close()
 
 
 def _json(obj: Any) -> str:

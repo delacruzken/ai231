@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from me3.config import load_config, load_secrets, resolve_path
 from me3.delegation.mock_worker import MockWorker
@@ -16,6 +18,8 @@ from me3.mcp.common import ErrorKind, RequestMeta, ToolError, ToolResult
 logger = logging.getLogger("me3.delegation.service")
 
 EventCallback = Callable[[dict[str, Any]], None]
+SUCCESS_OUTCOMES = frozenset({"succeeded", "success", "completed", "done", "ok"})
+STUCK_SECONDS = 45 * 60
 
 
 class DelegationService:
@@ -31,6 +35,8 @@ class DelegationService:
     ):
         cfg = load_config()
         secrets = load_secrets()
+        self.cfg = cfg
+        self.timezone_name = cfg.session.timezone or "Asia/Manila"
         self.registry = JobRegistry(db_path)
         self.workspaces_dir = workspaces_dir or resolve_path(cfg.paths.workspaces_dir)
         self.workspaces_dir.mkdir(parents=True, exist_ok=True)
@@ -121,9 +127,21 @@ class DelegationService:
                 job = self.registry.get(job_id)
                 if not job:
                     raise RuntimeError(f"job not found: {job_id}")
-                return {"job": job, "provider": self.provider}
+                localized = self._localize_job(job)
+                return {
+                    "job": localized,
+                    "jobs": [localized],
+                    "summary": _jobs_summary([job]),
+                    "provider": self.provider,
+                }
             active = self.registry.active_job()
-            return {"job": active, "jobs": self.registry.list_jobs(limit=10), "provider": self.provider}
+            recent = self.registry.list_jobs(limit=10)
+            return {
+                "job": self._localize_job(active) if active else None,
+                "jobs": [self._localize_job(j) for j in recent],
+                "summary": _jobs_summary(recent, active=active),
+                "provider": self.provider,
+            }
         if tool == "jobs.update":
             job_id = kwargs.get("job_id") or kwargs.get("id")
             if not job_id:
@@ -152,11 +170,20 @@ class DelegationService:
             if not job:
                 raise RuntimeError(f"job not found: {job_id}")
             return {
-                "job": job,
+                "job": self._localize_job(job),
                 "revisions": self.registry.revisions(job_id),
                 "provider": self.provider,
             }
         raise ValueError(f"unsupported tool: {tool}")
+
+    def _localize_job(self, job: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not job:
+            return None
+        out = dict(job)
+        out["created_at_local"] = _to_local(job.get("created_at"), self.timezone_name)
+        out["updated_at_local"] = _to_local(job.get("updated_at"), self.timezone_name)
+        out["timezone"] = self.timezone_name
+        return out
 
     def submit(
         self,
@@ -240,8 +267,9 @@ class DelegationService:
                 f"ME3 delegated job {job['id']}.\n"
                 f"Specification:\n{job['specification']}\n"
                 f"Instructions:\n{job.get('instructions') or 'Complete the request in the workspace.'}\n"
-                f"Workspace hint: {ws}\n"
-                "Return a short outcome summary when done. Do not publish privately."
+                f"Write deliverables under this workspace directory: {ws}\n"
+                "When finished, reply with a short outcome summary and the exact token "
+                "ME3_JOB_DONE on its own line. Do not publish privately."
             )
             self.opencode.send_message_async(session_id, prompt)
             self.registry.update(
@@ -266,6 +294,41 @@ class DelegationService:
         self._poll_thread = threading.Thread(target=self._poll_loop, name="opencode-poll", daemon=True)
         self._poll_thread.start()
 
+    def _resolve_session_id(self, job: dict[str, Any]) -> str | None:
+        jid = job["id"]
+        sid = self._session_by_job.get(jid)
+        if sid:
+            return sid
+        for rev in reversed(self.registry.revisions(jid)):
+            content = rev.get("content") or ""
+            if content.startswith("opencode session "):
+                recovered = content.split("opencode session ", 1)[1].strip().split()[0]
+                if recovered:
+                    self._session_by_job[jid] = recovered
+                    return recovered
+        return None
+
+    def _workspace_ready(self, job: dict[str, Any]) -> list[str]:
+        raw = (job.get("workspace_path") or "").strip()
+        ws = Path(raw) if raw else self.workspaces_dir / job["id"]
+        if not ws.is_dir():
+            return []
+        files = [p.name for p in sorted(ws.iterdir()) if p.is_file() and not p.name.startswith(".")]
+        if "index.html" in files:
+            return files
+        return []
+
+    def _mark_completed(self, job_id: str, *, outcome: str, artifacts: list[Any] | None = None) -> None:
+        self.registry.update(
+            job_id,
+            status="completed",
+            outcome=outcome[:800],
+            artifacts=artifacts,
+            clear_pending=True,
+        )
+        self.registry.add_revision(job_id, f"completed: {outcome[:200]}")
+        self._emit({"type": "job_update", "job": self._localize_job(self.registry.get(job_id))})
+
     def _poll_loop(self) -> None:
         """Rate-limited progress poll — must not block audio."""
         while not self._poll_stop.wait(2.0):
@@ -273,24 +336,119 @@ class DelegationService:
                 active = self.registry.active_job()
                 if not active or active["harness"] != "opencode":
                     continue
-                sid = self._session_by_job.get(active["id"])
-                if not sid:
+                sid = self._resolve_session_id(active)
+                text = ""
+                outcome = ""
+                if sid:
+                    try:
+                        session = self.opencode.get_session(sid)
+                        outcome = str(session.get("outcome") or "").lower()
+                    except Exception:
+                        logger.debug("opencode get_session failed", exc_info=True)
+                    try:
+                        msgs = self.opencode.list_messages(sid, limit=8)
+                        text = json_dump_messages(msgs)
+                    except Exception:
+                        logger.debug("opencode list_messages failed", exc_info=True)
+
+                files = self._workspace_ready(active)
+                done_token = "ME3_JOB_DONE" in text
+                done_phrase = "completed successfully" in text.lower()
+                session_done = outcome in SUCCESS_OUTCOMES
+                age_s = _age_seconds(active.get("updated_at") or active.get("created_at"))
+
+                if session_done or done_token or done_phrase or (files and (session_done or age_s >= 90)):
+                    reason = (
+                        f"opencode outcome={outcome or 'n/a'}; "
+                        f"workspace_files={', '.join(files) if files else 'none'}"
+                    )
+                    if text:
+                        reason = (text[-400:] + " | " + reason).strip(" |")
+                    self._mark_completed(
+                        active["id"],
+                        outcome=reason,
+                        artifacts=[{"path": str(Path(active.get("workspace_path") or self.workspaces_dir / active["id"]) / f)} for f in files],
+                    )
                     continue
-                msgs = self.opencode.list_messages(sid, limit=5)
-                if msgs:
-                    self.registry.add_revision(active["id"], f"opencode messages={len(msgs)}")
-                    # Heuristic completion: last assistant text contains DONE/complete
-                    text = json_dump_messages(msgs)
-                    if "ME3_JOB_DONE" in text or active["status"] == "running" and "completed successfully" in text.lower():
+
+                if age_s >= STUCK_SECONDS:
+                    if files:
+                        self._mark_completed(
+                            active["id"],
+                            outcome=(
+                                f"Marked complete after {int(age_s // 60)} min with workspace files present "
+                                f"({', '.join(files)})."
+                            ),
+                            artifacts=[
+                                {
+                                    "path": str(
+                                        Path(active.get("workspace_path") or self.workspaces_dir / active["id"]) / f
+                                    )
+                                }
+                                for f in files
+                            ],
+                        )
+                    else:
                         self.registry.update(
                             active["id"],
-                            status="completed",
-                            outcome=text[-500:],
+                            status="failed",
+                            outcome=f"Timed out after {int(age_s // 60)} minutes with no workspace deliverables.",
                             clear_pending=True,
                         )
-                        self._emit({"type": "job_update", "job": self.registry.get(active["id"])})
+                        self.registry.add_revision(active["id"], "failed: stuck timeout")
+                        self._emit(
+                            {"type": "job_update", "job": self._localize_job(self.registry.get(active["id"]))}
+                        )
             except Exception:
                 logger.exception("opencode poll failed")
+
+
+def _jobs_summary(
+    jobs: list[dict[str, Any]],
+    *,
+    active: dict[str, Any] | None = None,
+) -> str:
+    if active:
+        spec = (active.get("specification") or active.get("id") or "job").split("\n", 1)[0][:72]
+        ws = (active.get("workspace_path") or "").strip()
+        base = f"Active job {active.get('status')}: {spec}"
+        return f"{base} (workspace: {ws})" if ws else base
+    if not jobs:
+        return "No jobs on record."
+    parts: list[str] = []
+    for j in jobs[:5]:
+        spec = (j.get("specification") or j.get("id") or "job").split("\n", 1)[0][:64]
+        ws = (j.get("workspace_path") or "").strip()
+        bit = f"{j.get('status')}: {spec}"
+        if ws:
+            bit += f" @ {ws}"
+        parts.append(bit)
+    return f"{len(jobs)} recent job(s). " + " | ".join(parts)
+
+
+def _to_local(iso_ts: str | None, tz_name: str) -> str | None:
+    if not iso_ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(ZoneInfo(tz_name))
+        return local.strftime("%Y-%m-%d %H:%M:%S %Z")
+    except Exception:
+        return iso_ts
+
+
+def _age_seconds(iso_ts: str | None) -> float:
+    if not iso_ts:
+        return 0.0
+    try:
+        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return max(0.0, (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds())
+    except Exception:
+        return 0.0
 
 
 def json_dump_messages(msgs: list[dict[str, Any]]) -> str:
