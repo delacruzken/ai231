@@ -1,156 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="A modern landing page showcasing three of the most anticipated video games: Grand Theft Auto VI, Resident Evil Requiem, and Marvel's Wolverine.">
-  <title>Top Games Spotlight | GTA VI, Resident Evil Requiem, Marvel's Wolverine</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Edward R. Hyde — American civil engineer and Dean of the UP Diliman College of Engineering (1926–1940)." />
+  <title>Edward R. Hyde · UP Engineering</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <a class="skip-link" href="#games">Skip to game spotlight</a>
-
-  <header class="hero" id="top">
-    <div class="hero__bg" aria-hidden="true"></div>
-    <div class="container hero__content">
-      <p class="eyebrow">Games Landing Page</p>
-      <h1>Top Three Games to Watch</h1>
-      <p class="hero__lead">
-        Explore three headline-making titles across open-world crime, survival horror, and superhero action.
-        Each spotlight includes a quick overview, key features, and a cinematic visual theme.
-      </p>
-      <div class="hero__actions">
-        <a class="btn btn--primary" href="#games">Explore the lineup</a>
-        <a class="btn btn--ghost" href="#about">About this page</a>
-      </div>
-    </div>
+  <header class="hero">
+    <p class="eyebrow">UP Diliman · College of Engineering</p>
+    <h1>Edward R. Hyde</h1>
+    <p class="lede">American civil engineer, West Point graduate, and long-serving dean who shaped the early physical campus of engineering at the University of the Philippines.</p>
   </header>
 
   <main>
-    <section class="section intro" id="about">
-      <div class="container intro__grid">
-        <div>
-          <h2>Built as a standalone spotlight</h2>
-          <p>
-            This responsive landing page is designed to work on its own, making it easy to publish to a GitHub Pages
-            docs root or host as a static page. The layout adapts from mobile screens to large desktops.
-          </p>
-        </div>
-        <ul class="highlights" aria-label="Page highlights">
-          <li><strong>3</strong><span>Featured games</span></li>
-          <li><strong>Responsive</strong><span>Mobile and desktop</span></li>
-          <li><strong>Standalone</strong><span>HTML, CSS, and JS</span></li>
-        </ul>
-      </div>
+    <section>
+      <h2>Biography</h2>
+      <p>Edward R. Hyde was an American civil engineer who taught at West Point before joining the University of the Philippines in 1920. He later became Dean of the College of Engineering, serving from 1926 to 1940.</p>
     </section>
 
-    <section class="section games" id="games" aria-labelledby="games-title">
-      <div class="container">
-        <div class="section-heading">
-          <p class="eyebrow">Featured Lineup</p>
-          <h2 id="games-title">Game Spotlights</h2>
-          <p>Three distinct experiences, each bringing a different style of intensity and immersion.</p>
-        </div>
+    <section>
+      <h2>Campus contributions</h2>
+      <ul>
+        <li>Designed the engineering building that anchored early UP engineering instruction.</li>
+        <li>Created the floral sundial, a lasting campus landmark associated with the college.</li>
+        <li>Guided the college through a formative period of growth in faculty, facilities, and curriculum.</li>
+      </ul>
+    </section>
 
-        <div class="cards">
-          <article class="card reveal" id="gta-vi">
-            <div class="card__media">
-              <img
-                src="https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1400&q=80"
-                alt="Neon-lit city skyline at night, evoking the vibrant urban atmosphere associated with Grand Theft Auto VI"
-                loading="lazy"
-                width="1400"
-                height="900"
-              >
-              <span class="badge">Open World</span>
-            </div>
-            <div class="card__body">
-              <h3>Grand Theft Auto VI</h3>
-              <p class="card__description">
-                Grand Theft Auto VI returns players to the sun-soaked, neon-charged state of Leonida, with Vice City
-                at its center. The game follows the intertwined story of Lucia and Jason as they navigate crime,
-                ambition, and survival in a sprawling modern world built for exploration, chaos, and unforgettable set pieces.
-              </p>
-              <h4>Key Features</h4>
-              <ul class="features">
-                <li>Expansive open world inspired by Vice City and the broader Leonida region.</li>
-                <li>Story-driven experience centered on dual protagonists Lucia and Jason.</li>
-                <li>Dense urban streets, beaches, and wild areas designed for emergent gameplay.</li>
-                <li>High-energy action, driving, and mission variety in Rockstar's signature style.</li>
-              </ul>
-            </div>
-          </article>
-
-          <article class="card reveal" id="resident-evil-requiem">
-            <div class="card__media">
-              <img
-                src="https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=1400&q=80"
-                alt="Dark foggy corridor with dramatic lighting, reflecting the tense survival horror mood of Resident Evil Requiem"
-                loading="lazy"
-                width="1400"
-                height="900"
-              >
-              <span class="badge badge--horror">Survival Horror</span>
-            </div>
-            <div class="card__body">
-              <h3>Resident Evil Requiem</h3>
-              <p class="card__description">
-                Resident Evil Requiem leans into the franchise's legacy of dread, mystery, and carefully paced terror.
-                Players can expect an unsettling journey where every resource matters, every corridor feels dangerous,
-                and the unknown waits just beyond the next door.
-              </p>
-              <h4>Key Features</h4>
-              <ul class="features">
-                <li>Atmospheric survival horror focused on tension, exploration, and suspense.</li>
-                <li>Resource management that rewards planning and careful decision-making.</li>
-                <li>Haunting environments designed to keep players alert and uncertain.</li>
-                <li>Encounters that emphasize vulnerability, strategy, and memorable scares.</li>
-              </ul>
-            </div>
-          </article>
-
-          <article class="card reveal" id="marvels-wolverine">
-            <div class="card__media">
-              <img
-                src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1400&q=80"
-                alt="Moody cinematic lighting in an urban setting, suggesting the gritty action tone of Marvel's Wolverine"
-                loading="lazy"
-                width="1400"
-                height="900"
-              >
-              <span class="badge badge--action">Action Adventure</span>
-            </div>
-            <div class="card__body">
-              <h3>Marvel's Wolverine</h3>
-              <p class="card__description">
-                Marvel's Wolverine promises a gritty, character-driven action adventure starring Logan. Built around
-                close-quarters intensity and emotional storytelling, the game aims to capture Wolverine's ferocity,
-                resilience, and complicated humanity.
-              </p>
-              <h4>Key Features</h4>
-              <ul class="features">
-                <li>Visceral combat centered on Wolverine's speed, strength, and claws.</li>
-                <li>Narrative-driven adventure that explores Logan's character and conflicts.</li>
-                <li>Cinematic presentation with a darker, grounded superhero tone.</li>
-                <li>Action set pieces balanced with moments of story and atmosphere.</li>
-              </ul>
-            </div>
-          </article>
-        </div>
-      </div>
+    <section>
+      <h2>Legacy</h2>
+      <p>Hyde’s tenure is remembered for connecting American engineering practice with the emerging Philippine university system—leaving both buildings and academic culture that later generations of UP engineers inherited.</p>
     </section>
   </main>
 
-  <footer class="footer">
-    <div class="container footer__inner">
-      <p><strong>Top Games Spotlight</strong> — a standalone static landing page.</p>
-      <a href="#top">Back to top</a>
-    </div>
+  <footer>
+    <p>Edward R. Hyde · Dean, UP Diliman College of Engineering (1926–1940)</p>
   </footer>
-
-  <script src="script.js"></script>
 </body>
 </html>

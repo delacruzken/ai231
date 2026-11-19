@@ -1,17 +1,7 @@
-# Top 3 Video Games of 2026 — Landing Page
+# Edward R
 
-Deliverable for ME3 job `bc91934d-0f14-42d4-9816-fa232b2753e7`.
+Mock worker placeholder (OpenCode was offline).
 
-## Contents
-- `index.html` — responsive landing page showcasing **Grand Theft Auto VI**, **Resident Evil Requiem**, and **Marvel's Wolverine** (descriptions, key features, imagery placeholders, modern CSS).
+Spec:
 
-## Local preview
-Open `index.html` in a browser.
-
-## GitHub Pages (delacruzken/ai231)
-This repo appears to serve GitHub Pages from `docs/`. To publish this page:
-1. Copy `index.html` to `/docs/index.html` in the `ai231` repo (or to the configured Pages source).
-2. Commit and push to the branch configured for GitHub Pages (commonly `main`).
-3. Confirm Pages settings in the GitHub repository settings.
-
-Images use `placehold.co` placeholders; replace `img src` URLs with official/licensed assets if desired.
+Create a professional landing page website about Edward R. Hyde, the American civil engineer who served as Dean of UP Diliman College of Engineering from 1926 to 1940. Include his background (West Point, joined UP in 1920), his contributions to UP engineering (designed the engineering building and floral sundial), and his legacy. Make it clean, informative, and easy to navigate with sections for biography, achievements, and historical significance. Output as a complete HTML/CSS/JS site ready for GitHub Pages with index.html, styles.css, and any supporting files.
