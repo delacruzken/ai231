@@ -36,12 +36,34 @@ class AudioConfig(BaseModel):
     capture_blocksize: int = 1024
     playback_blocksize: int = 1024
     capture_queue_max: int = 64
+    # Soft AGC on the ASR feed only (VAD/barge-in keep raw levels).
+    agc_enabled: bool = True
+    agc_target_rms: float = 0.10
+    agc_max_gain: float = 12.0
+    agc_min_rms: float = 0.001
 
 
 class SessionConfig(BaseModel):
-    silence_normal_ms: int = 600
-    silence_incomplete_ms: int = 1200
-    silence_clarification_ms: int = 2000
+    # End-of-turn silence (ms). Incomplete / open questions wait longer to avoid mid-phrase cuts.
+    silence_normal_ms: int = 700
+    silence_incomplete_ms: int = 1500
+    silence_clarification_ms: int = 2400
+    # After TTS, ignore mic briefly so laptop speaker→mic echo is not transcribed.
+    echo_hangover_ms: int = 450
+    # When True, do not feed ASR while bot audio is playing (laptop no-AEC default).
+    # Sustained loud speech still barge-in via VAD (see barge_in_*).
+    gate_asr_while_speaking: bool = True
+    # Barge-in: require real mic energy (not silence-boosted VAD). Soft-pause TTS
+    # first; only cancel the LLM turn after confirm_ms of sustained speech.
+    barge_in_vad_threshold: float = 0.50
+    barge_in_pause_ms: int = 160
+    barge_in_confirm_ms: int = 320
+    barge_in_hangover_ms: int = 200
+    # Mic RMS must exceed echo EMA * ratio (and absolute floor) to count as barge.
+    barge_in_energy_ratio: float = 1.8
+    barge_in_energy_floor: float = 0.012
+    # Deprecated alias — prefer barge_in_confirm_ms.
+    barge_in_hold_ms: int = 320
     ack_delay_ms: int = 700
     backchannel_enabled: bool = False
     backchannel_cooldown_ms: int = 10000
@@ -54,13 +76,15 @@ class SessionConfig(BaseModel):
 
 
 class ModelsConfig(BaseModel):
-    asr: str = "sherpa-onnx-streaming-zipformer-en-2023-02-21-int8"
+    asr: str = "sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06"
     tts: str = "en_US-lessac-medium"
     vad: str = "silero-vad"
     llm: str = "claude-haiku-4-5"
     asr_threads: int = 2
     tts_threads: int = 1
     vad_threads: int = 1
+    # Empty = sherpa auto-detect (required for Kroko Zipformer2).
+    asr_model_type: str = ""
 
 
 class SpeechConfig(BaseModel):
@@ -72,6 +96,12 @@ class SpeechConfig(BaseModel):
     tts_port: int = 8766
     vad_threshold: float = 0.5
     vad_window: int = 512
+    asr_decoding_method: str = "modified_beam_search"
+    asr_max_active_paths: int = 4
+    # Sherpa endpoint trailing-silence (seconds). Longer = fewer mid-utterance finals.
+    asr_endpoint_rule1_trailing_silence: float = 2.8
+    asr_endpoint_rule2_trailing_silence: float = 1.8
+    asr_endpoint_rule3_min_utterance_length: float = 20.0
 
 
 class UiConfig(BaseModel):

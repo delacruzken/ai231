@@ -129,6 +129,15 @@ class OpenCodeClient:
             except RuntimeError:
                 return False
 
+    def get_session(self, session_id: str) -> dict[str, Any]:
+        try:
+            data = self.request("GET", f"/api/session/{session_id}")
+        except RuntimeError:
+            data = self.request("GET", f"/session/{session_id}")
+        if isinstance(data, dict):
+            return data
+        return {}
+
     def list_messages(self, session_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
         try:
             data = self.request("GET", f"/api/session/{session_id}/message?limit={limit}")

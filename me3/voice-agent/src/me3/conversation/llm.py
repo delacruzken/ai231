@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 from uuid import uuid4
 
+from me3.conversation.live_facts import needs_live_web_evidence
 from me3.tasks.tools import TOOL_DEFINITIONS, dispatch_tool
 
 logger = logging.getLogger("me3.conversation.llm")
@@ -145,31 +146,45 @@ class MockLLM(BaseLLM):
             return results
         # publish site (before generic "site/website" job routing)
         if re.search(r"\b(publish|deploy)\b.+\b(site|page|pages|github)\b", lower) or re.search(
-            r"\bpublish_status\b|\bpages status\b", lower
+            r"\bpublish_status\b|\bpages status\b|\bconfirm(?:ed)?\b", lower
         ):
-            if "status" in lower:
+            if "status" in lower and "confirm" not in lower:
                 results.append({"name": "publish_status", "result": executor("publish_status", {})})
             else:
                 m = re.search(r"(?:from|folder|dir(?:ectory)?)\s+(\S+)", user, re.I)
-                source = m.group(1) if m else "workspaces/demo-site"
-                confirm = "confirm" in lower or "approved" in lower
+                source = m.group(1) if m else ""
+                confirm = bool(
+                    re.search(r"\b(confirm(?:ed)?|approved|go ahead|publish it|push it)\b", lower)
+                )
+                hint = ""
+                if "game" in lower:
+                    hint = "game"
+                elif "portfolio" in lower or "ken" in lower:
+                    hint = "portfolio"
+                args: dict[str, Any] = {"confirm": confirm}
+                if source:
+                    args["source_dir"] = source
+                if hint:
+                    args["hint"] = hint
                 results.append(
                     {
                         "name": "publish_site",
-                        "result": executor(
-                            "publish_site",
-                            {"source_dir": source, "confirm": confirm},
-                        ),
+                        "result": executor("publish_site", args),
                     }
                 )
             return results
-        # delegated coding job
+        # delegated coding job (broad: ASR often garbling "submit/build/landing page")
         m = re.search(
-            r"(?:build|create|make|delegate|start)\s+(?:a\s+)?(?:job|site|website|page|app)\b(.+)$",
+            r"(?:build|create|make|delegate|start|submit|spin\s*up)\s+(?:a\s+|an\s+|the\s+)?"
+            r"(?:job|site|website|page|landing\s*page|app)\b(.+)$",
             user,
             re.I,
         )
-        if m or re.search(r"\b(opencode|coding job|delegate)\b", lower):
+        if m or re.search(
+            r"\b(opencode|coding job|delegate|submit(?:\s+a)?\s+job|landing\s*page|"
+            r"please\s+proceed|go\s+ahead\s+and\s+(?:build|create|submit))\b",
+            lower,
+        ):
             spec = (m.group(1).strip() if m else user).strip(" .:") or user
             results.append(
                 {
@@ -178,15 +193,11 @@ class MockLLM(BaseLLM):
                 }
             )
             return results
-        # web research
-        m = re.search(
-            r"(?:search(?:\s+the)?\s+web(?:\s+for)?|look\s+up|research|who\s+won|what\s+are)\s+(.+)$",
-            user,
-            re.I,
-        )
-        if m or any(k in lower for k in ("senate", "search for", "google")):
-            query = m.group(1).strip() if m else user
-            results.append({"name": "web_search", "result": executor("web_search", {"query": query})})
+        # web research — same policy as live Haiku: force search for world facts
+        if needs_live_web_evidence(user) or any(
+            k in lower for k in ("search for", "google", "look up", "research")
+        ):
+            results.append({"name": "web_search", "result": executor("web_search", {"query": user})})
             return results
         return results
 
@@ -233,11 +244,22 @@ class MockLLM(BaseLLM):
                     f"Started job {job.get('id', '')[:8]}. Status {job.get('status', 'queued')}."
                 )
             elif name == "jobs_status":
-                job = r.get("job") or {}
-                if job:
-                    parts.append(f"Job {job.get('id', '')[:8]} is {job.get('status')}.")
+                summary = r.get("summary")
+                if summary:
+                    parts.append(str(summary))
                 else:
-                    parts.append("No active job.")
+                    job = r.get("job") or {}
+                    recent = r.get("jobs") or []
+                    if job:
+                        parts.append(f"Job {job.get('id', '')[:8]} is {job.get('status')}.")
+                    elif recent:
+                        top = recent[0]
+                        parts.append(
+                            f"No active job. Most recent: {top.get('status')} — "
+                            f"{(top.get('specification') or '')[:80]}"
+                        )
+                    else:
+                        parts.append("No jobs on record.")
             elif name == "jobs_cancel":
                 parts.append("Job cancelled.")
             elif name == "publish_validate":
@@ -301,20 +323,38 @@ class AnthropicLLM(BaseLLM):
             if m["role"] in ("user", "assistant")
         ]
         tool_results_acc: list[dict[str, Any]] = []
+        last_user = ""
+        for m in reversed(messages):
+            if m.get("role") == "user" and isinstance(m.get("content"), str):
+                last_user = m["content"]
+                break
+        force_web = needs_live_web_evidence(last_user)
         try:
             if tools_enabled and tool_executor:
-                # Tool round(s) non-streaming for reliability, then stream final text
-                for _ in range(3):
+                # Tool round(s) non-streaming for reliability, then stream final text.
+                # Tool rounds need a high max_tokens budget: jobs_submit specifications
+                # easily exceed 120 tokens; that limit caused Haiku to skip the tool and
+                # only say "I'll submit…" without creating a job.
+                for round_i in range(4):
                     with self._lock:
                         if tid in self._cancel:
                             return
                     kwargs: dict[str, Any] = {
                         "model": self.model,
-                        "max_tokens": 512,
+                        "max_tokens": 1024,
                         "system": system,
                         "messages": api_messages,
                         "tools": TOOL_DEFINITIONS,
                     }
+                    # First round: force web_search for live-fact questions so Haiku
+                    # cannot confidently answer from stale training memory (e.g. presidents).
+                    if (
+                        round_i == 0
+                        and force_web
+                        and not any(tr.get("name") == "web_search" for tr in tool_results_acc)
+                    ):
+                        kwargs["tool_choice"] = {"type": "tool", "name": "web_search"}
+                        logger.info("forcing web_search for live-fact turn=%s", tid)
                     resp = self._client.messages.create(**kwargs)
                     if resp.stop_reason == "tool_use":
                         tool_uses = [b for b in resp.content if b.type == "tool_use"]
@@ -337,6 +377,15 @@ class AnthropicLLM(BaseLLM):
                         continue
                     # Final text response — stream chunks from assembled text
                     text = "".join(getattr(b, "text", "") for b in resp.content if hasattr(b, "text"))
+                    if force_web and not any(tr.get("name") == "web_search" for tr in tool_results_acc):
+                        # Safety net: never speak a live-fact guess without evidence.
+                        logger.warning("live-fact answer blocked without web_search turn=%s", tid)
+                        text = (
+                            "I could not verify that from a live search. "
+                            "Please ask again in a moment."
+                        )
+                    if not text.strip() and tool_results_acc:
+                        text = _spoken_fallback_from_tools(tool_results_acc)
                     if text:
                         yield LlmChunk(tid, text, done=False, tool_results=tool_results_acc)
                     yield LlmChunk(tid, "", done=True, tool_results=tool_results_acc)
@@ -344,7 +393,7 @@ class AnthropicLLM(BaseLLM):
 
             with self._client.messages.stream(
                 model=self.model,
-                max_tokens=512,
+                max_tokens=256,
                 system=system,
                 messages=api_messages,
             ) as stream:
@@ -358,6 +407,29 @@ class AnthropicLLM(BaseLLM):
         except Exception:
             logger.exception("anthropic stream failed model=%s", self.model)
             raise
+
+
+def _spoken_fallback_from_tools(tool_results: list[dict[str, Any]]) -> str:
+    """Short TTS line when the model returns tools but no spoken text."""
+    for tr in tool_results:
+        r = tr.get("result") or {}
+        name = tr.get("name")
+        if not r.get("ok"):
+            return f"That failed: {r.get('error', 'unknown error')}."
+        if name == "jobs_submit":
+            job = r.get("job") or {}
+            return f"Started job {str(job.get('id') or '')[:8]}. Status {job.get('status', 'queued')}."
+        if name == "jobs_status":
+            summary = r.get("summary")
+            if summary:
+                return str(summary)
+            job = r.get("job") or {}
+            if job:
+                return f"Job {str(job.get('id') or '')[:8]} is {job.get('status')}."
+            return "No active job."
+        if name == "jobs_cancel":
+            return "Job cancelled."
+    return "Done."
 
 
 def make_llm(

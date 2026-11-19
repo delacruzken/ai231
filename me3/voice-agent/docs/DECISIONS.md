@@ -6,7 +6,7 @@ When a choice is revisited, open a patch note and reference the decision ID here
 | # | Choice | Status |
 |---|---|---|
 | 1 | Local pretrained speech; cloud LLM | agreed |
-| 2 | sherpa-onnx streaming Zipformer en 2023-02-21 INT8 | verified laptop (Phase 1); Pi pending |
+| 2 | sherpa-onnx streaming Zipformer EN — Kroko 2025-08-06 + beam search (was LibriSpeech 2023-02-21 INT8) | verified laptop smoke 2026-11-19; Pi pending |
 | 3 | English first | agreed |
 | 4 | Piper en_US-lessac-medium via piper-tts 1.8.0 (same ONNX; not sherpa OfflineTts on v2) | verified laptop (Phase 1); Pi pending |
 | 5 | EMEET M1A I/O | pending hardware — laptop default devices used in Phase 2; hint swap later |

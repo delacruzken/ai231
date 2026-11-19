@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download / vendor pinned Phase 1 speech models into voice-agent/models/
+# Download / vendor pinned speech models into voice-agent/models/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,8 +8,9 @@ TMP="$MODELS/.tmp"
 FD_BENCH_SILERO="$ROOT/../fd-benchmark/models/silero_vad.onnx"
 FD_BENCH_LICENSE="$ROOT/../fd-benchmark/models/SILERO_LICENSE"
 
-ASR_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-02-21.tar.bz2"
-ASR_DIR="sherpa-onnx-streaming-zipformer-en-2023-02-21"
+# Conversational streaming Zipformer2 (Kroko) — default ASR
+ASR_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06.tar.bz2"
+ASR_DIR="sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06"
 TTS_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2"
 TTS_DIR="vits-piper-en_US-lessac-medium"
 
@@ -47,21 +48,32 @@ else
   echo "[ok] silero_vad.onnx already present"
 fi
 
-for f in \
-  "encoder-epoch-99-avg-1.int8.onnx" \
-  "decoder-epoch-99-avg-1.onnx" \
-  "joiner-epoch-99-avg-1.int8.onnx" \
-  "tokens.txt"
-do
-  if [[ ! -f "$MODELS/$ASR_DIR/$f" ]]; then
-    echo "ERROR: missing $ASR_DIR/$f" >&2
-    exit 1
-  fi
-done
+pick_component() {
+  # Prefer int8 variant when present; else plain <stem>.onnx / epoch-named files.
+  local dir="$1" stem="$2"
+  local c
+  for c in \
+    "$dir/${stem}.int8.onnx" \
+    "$dir/${stem}.onnx" \
+    "$dir/${stem}-epoch-99-avg-1.int8.onnx" \
+    "$dir/${stem}-epoch-99-avg-1.onnx"
+  do
+    if [[ -f "$MODELS/$c" ]]; then
+      echo "$c"
+      return 0
+    fi
+  done
+  echo "ERROR: missing $stem onnx under $dir" >&2
+  return 1
+}
 
-DECODER="decoder-epoch-99-avg-1.onnx"
-if [[ -f "$MODELS/$ASR_DIR/decoder-epoch-99-avg-1.int8.onnx" ]]; then
-  DECODER="decoder-epoch-99-avg-1.int8.onnx"
+ENCODER="$(pick_component "$ASR_DIR" encoder)"
+DECODER="$(pick_component "$ASR_DIR" decoder)"
+JOINER="$(pick_component "$ASR_DIR" joiner)"
+TOKENS="$ASR_DIR/tokens.txt"
+if [[ ! -f "$MODELS/$TOKENS" ]]; then
+  echo "ERROR: missing $TOKENS" >&2
+  exit 1
 fi
 
 TTS_ONNX_PATH="$(find "$MODELS/$TTS_DIR" -name 'en_US-lessac-medium.onnx' | head -n1 || true)"
@@ -73,7 +85,10 @@ TTS_ONNX="${TTS_ONNX_PATH#$MODELS/}"
 
 export ME3_MODELS="$MODELS"
 export ME3_ASR_DIR="$ASR_DIR"
+export ME3_ENCODER="$ENCODER"
 export ME3_DECODER="$DECODER"
+export ME3_JOINER="$JOINER"
+export ME3_TOKENS="$TOKENS"
 export ME3_TTS_ONNX="$TTS_ONNX"
 export ME3_ASR_URL="$ASR_URL"
 export ME3_TTS_URL="$TTS_URL"
@@ -83,16 +98,12 @@ import hashlib, json, os, pathlib, time
 
 root = pathlib.Path(os.environ["ME3_MODELS"])
 asr_dir = os.environ["ME3_ASR_DIR"]
+encoder = os.environ["ME3_ENCODER"]
 decoder = os.environ["ME3_DECODER"]
+joiner = os.environ["ME3_JOINER"]
+tokens = os.environ["ME3_TOKENS"]
 tts_onnx = os.environ["ME3_TTS_ONNX"]
-rels = [
-    f"{asr_dir}/encoder-epoch-99-avg-1.int8.onnx",
-    f"{asr_dir}/{decoder}",
-    f"{asr_dir}/joiner-epoch-99-avg-1.int8.onnx",
-    f"{asr_dir}/tokens.txt",
-    tts_onnx,
-    "silero_vad.onnx",
-]
+rels = [encoder, decoder, joiner, tokens, tts_onnx, "silero_vad.onnx"]
 entries = []
 for rel in rels:
     p = root / rel
@@ -122,13 +133,13 @@ for cand in (root / "vits-piper-en_US-lessac-medium").rglob("tokens.txt"):
 doc = {
     "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "asr": {
-        "id": "sherpa-onnx-streaming-zipformer-en-2023-02-21",
+        "id": asr_dir,
         "url": os.environ["ME3_ASR_URL"],
-        "encoder": f"{asr_dir}/encoder-epoch-99-avg-1.int8.onnx",
-        "decoder": f"{asr_dir}/{decoder}",
-        "joiner": f"{asr_dir}/joiner-epoch-99-avg-1.int8.onnx",
-        "tokens": f"{asr_dir}/tokens.txt",
-        "note": "INT8 encoder/joiner; decoder may be fp32 if int8 absent in archive",
+        "encoder": encoder,
+        "decoder": decoder,
+        "joiner": joiner,
+        "tokens": tokens,
+        "note": "Kroko EN streaming Zipformer2; leave sherpa model_type empty for auto-detect",
     },
     "tts": {
         "id": "en_US-lessac-medium",

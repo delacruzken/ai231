@@ -19,6 +19,8 @@ One file per change under [`patches/`](patches/). Use [`patches/_TEMPLATE.md`](p
 
 | ID | Phase | Verdict | Summary |
 |---|---|---|---|
+| [2026-11-19_turn-endpoint-patience](patches/2026-11-19_turn-endpoint-patience.md) | 2/conversation | improved | Longer silence + incomplete heuristics; slower sherpa endpoint |
+| [2026-11-19_asr-kroko-beam-agc](patches/2026-11-19_asr-kroko-beam-agc.md) | 2/speech | improved | Kroko ASR + beam search + soft AGC for M1A mic quality |
 | [2026-11-09_phase8-benchmark](patches/2026-11-09_phase8-benchmark.md) | 8 | improved | fdbench direct-feed bridge + marks + trial reset; Pipecat 1.15 transport shuttle |
 | [2026-11-08_phase7-publication](patches/2026-11-08_phase7-publication.md) | 7 | improved | GitHub Pages publish adapter; sanitize secrets; confirm gate; mock + live PAT path |
 | [2026-11-08_phase6-delegation](patches/2026-11-08_phase6-delegation.md) | 6 | improved | One-job OpenCode/mock queue; needs_input UI; cancel/cleanup; no cloud OpenCode key |

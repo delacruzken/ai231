@@ -201,7 +201,10 @@ class GitHubPublisher:
         expect_substring: str | None = None,
         retries: int = 3,
         delay_s: float = 2.0,
+        timeout_s: float | None = None,
     ) -> dict[str, Any]:
+        # Keep voice turns snappy: Pages HTML often lags the git commit.
+        check_timeout = 8.0 if timeout_s is None else float(timeout_s)
         pages = self.pages_info()
         url = (pages.get("html_url") or self.default_pages_url()).rstrip("/") + "/"
         last_err = ""
@@ -214,7 +217,7 @@ class GitHubPublisher:
                     headers={"User-Agent": "me3-voice-agent"},
                     method="GET",
                 )
-                with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
+                with urllib.request.urlopen(req, timeout=check_timeout) as resp:
                     status = resp.status
                     body = resp.read().decode("utf-8", errors="replace")
                 if status < 400:

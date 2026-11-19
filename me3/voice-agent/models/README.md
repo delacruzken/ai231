@@ -10,7 +10,7 @@ Pinned artifacts (see `MANIFEST.json` after fetch):
 
 | Role | Artifact |
 |---|---|
-| ASR | `sherpa-onnx-streaming-zipformer-en-2023-02-21` (INT8 encoder/joiner + decoder) |
+| ASR | `sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06` (conversational EN; beam search default) |
 | TTS | `en_US-lessac-medium.onnx` via **piper-tts** (sherpa-onnx 2.x OfflineTts phonemize path deprecated) |
 | VAD | `silero_vad.onnx` (copied from `../fd-benchmark/models/`) |
 

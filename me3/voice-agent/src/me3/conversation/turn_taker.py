@@ -6,17 +6,35 @@ import re
 import time
 from dataclasses import dataclass
 
+from me3.conversation.asr_filters import is_asr_ghost
+
+# Function / determiner / preposition tails — speaker is mid-clause.
 INCOMPLETE_TAIL = re.compile(
-    r"(?:\b(?:and|or|but|if|when|because|so|to|with|for|the|a|an|my|your)\s*$|[,\-–—…]\s*$)",
+    r"(?:\b(?:and|or|but|if|when|while|because|so|to|with|for|of|from|about|"
+    r"the|a|an|my|your|our|their|his|her|its|this|that|these|those|"
+    r"is|are|was|were|be|been|being|do|does|did|can|could|would|will|shall|may|might|"
+    r"who|what|when|where|why|how|which|whose)\s*$|[,\-–—…:/]\s*$)",
     re.IGNORECASE,
+)
+
+# Open questions / prompts that usually continue unless ASR emitted terminal punctuation.
+OPEN_STEM = re.compile(
+    r"^(?:please\s+)?(?:who|what|when|where|why|how|which|whose|do|does|did|is|are|"
+    r"can|could|would|will|tell\s+me|i\s+(?:want|would\s+like|need)\s+to\s+know)\b",
+    re.IGNORECASE,
+)
+
+# Truncated / initialism fragments: "Pre", "Pres", "G-C", "G C"
+TRUNCATED_TAIL = re.compile(
+    r"(?:\b[A-Z][a-z]{0,3}\s*$|\b[A-Za-z](?:-[A-Za-z]{0,3})+\s*$|\b[A-Z](?:\s+[A-Z]){1,3}\s*$)"
 )
 
 
 @dataclass
 class TurnTakerConfig:
-    silence_normal_ms: int = 600
-    silence_incomplete_ms: int = 1200
-    silence_clarification_ms: int = 2000
+    silence_normal_ms: int = 700
+    silence_incomplete_ms: int = 1500
+    silence_clarification_ms: int = 2400
 
 
 @dataclass
@@ -49,18 +67,39 @@ class TurnTaker:
         self._clarify_sent = False
 
     def on_partial(self, text: str) -> None:
-        self.partial_text = (text or "").strip()
-        # speech implied by new partials
-        self.on_speech()
+        """Update transcript text without resetting the silence clock.
+
+        Silence is driven by VAD ``on_speech``. Resetting on every ASR partial
+        made endpointing wait until partials stopped trickling (often slow, and
+        worse with echo). Only treat *growing* text as continued speech.
+        """
+        t = (text or "").strip()
+        prev = self.partial_text
+        if t and len(t) > len(prev):
+            self.on_speech()
+        self.partial_text = t
 
     def is_incomplete(self, text: str | None = None) -> bool:
         t = (text if text is not None else self.partial_text).strip()
         if not t:
             return True
+        # Clear questions / exclamations are complete even if short.
+        if t.endswith(("?", "!")):
+            return False
+        if t.endswith("."):
+            # Kroko often emits periods; treat as complete unless it looks truncated.
+            body = t[:-1].rstrip()
+            if not TRUNCATED_TAIL.search(body) and not INCOMPLETE_TAIL.search(body):
+                return False
         if INCOMPLETE_TAIL.search(t):
             return True
+        if TRUNCATED_TAIL.search(t):
+            return True
+        # Open stems without terminal punctuation — wait longer (e.g. "Who is the Pre").
+        if OPEN_STEM.search(t):
+            return True
         # very short fragments
-        if len(t.split()) < 2 and not t.endswith(("?", "!")):
+        if len(t.split()) < 3:
             return True
         return False
 
@@ -80,6 +119,10 @@ class TurnTaker:
             self._clarify_sent = True
             return TurnDecision("clarify", silence_ms, self.cfg.silence_clarification_ms, incomplete)
         if silence_ms >= thr and self.partial_text and not self._commit_armed:
+            if is_asr_ghost(self.partial_text):
+                # Drop silence/noise ghosts — do not clarify or commit.
+                self.reset()
+                return TurnDecision("none", silence_ms, thr, True)
             self._commit_armed = True
             return TurnDecision("commit", silence_ms, thr, incomplete)
         return TurnDecision("none", silence_ms, thr, incomplete)
