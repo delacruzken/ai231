@@ -357,6 +357,10 @@ class ConversationOrchestrator:
                     )
                     # Speak completed sentences as they arrive
                     while True:
+                        with self._lock:
+                            if self.active_turn_id != turn_id:
+                                mark("llm_cancel")
+                                return
                         m = re.search(r"[.!?]\s+", sentence_buf)
                         if not m:
                             break

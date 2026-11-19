@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -121,6 +122,13 @@ class SessionController:
         self._was_gating_asr = False
         self._barge_speech_ms = 0.0
         self._barge_last_mono: float | None = None
+        self._barge_soft_paused = False
+        self._barge_asr_buf: list[np.ndarray] = []
+        self._barge_vad_buf = np.zeros(0, dtype=np.float32)
+        # Once soft-pause starts, mic audio feeds ASR so the interrupt is the next turn.
+        self._barge_asr_live = False
+        # Skip echo-gate ASR wipe after a confirmed barge (keeps interrupt transcript).
+        self._barge_keep_asr = False
         self._echo_rms_ema: float = 0.0
         self._echo_rms_ready: bool = False
 
@@ -648,32 +656,49 @@ class SessionController:
                 continue
             gating = self._echo_gate_active(state)
             # Digital mute blocks normal ASR, but still allow barge-in to stop TTS.
-            if muted and not gating:
+            if muted and not gating and not self._barge_asr_live:
                 continue
             if gating:
-                if self._watch_barge_in(chunk, state):
+                barged = self._watch_barge_in(chunk, state)
+                # Soft-pause / confirmed barge: keep capturing the interrupt into ASR.
+                if barged or self._barge_asr_live:
+                    if not muted:
+                        self._forward_asr(chunk, SessionState.LISTENING)
                     continue
-                self._vad_buf = np.zeros(0, dtype=np.float32)
+                # Keep _vad_buf remainder across chunks. Capture blocks at 48 kHz→16 kHz
+                # are often <512 samples; wiping here made barge never assemble a frame
+                # (diagnostic harness passed because it did not wipe).
                 self._vad_in_speech = False
                 self._was_gating_asr = True
                 continue
-            self._barge_speech_ms = 0.0
-            self._barge_last_mono = None
-            self._echo_rms_ema = 0.0
-            self._echo_rms_ready = False
             if muted:
+                self._reset_barge_tracker()
                 continue
             if self._was_gating_asr:
-                # Fresh listen window after echo gate; drop leftover ASR segment/partials.
                 self._was_gating_asr = False
-                self._vad_buf = np.zeros(0, dtype=np.float32)
-                if self.asr:
-                    try:
-                        self.asr.reset_segment()
-                    except Exception:
-                        logger.exception("asr reset after echo gate failed")
-                if self.conversation:
-                    self.conversation.turn_taker.reset()
+                if self._barge_keep_asr:
+                    # Confirmed barge already seeded ASR with the interrupt — keep it.
+                    self._barge_keep_asr = False
+                    self._barge_asr_live = False
+                    self._reset_barge_tracker(clear_asr_live=False)
+                else:
+                    # Fresh listen window after echo gate; drop leftover TTS bleed.
+                    self._reset_barge_tracker()
+                    self._vad_buf = np.zeros(0, dtype=np.float32)
+                    if self.asr:
+                        try:
+                            self.asr.reset_segment()
+                        except Exception:
+                            logger.exception("asr reset after echo gate failed")
+                    if self.conversation:
+                        self.conversation.turn_taker.reset()
+            elif self._barge_asr_live or self._barge_keep_asr:
+                # Left the gate while still capturing a barge utterance.
+                self._barge_keep_asr = False
+                self._barge_asr_live = False
+                self._reset_barge_tracker(clear_asr_live=False)
+            else:
+                self._reset_barge_tracker()
             self._forward_asr(chunk, state)
 
     def _echo_gate_active(self, state: SessionState) -> bool:
@@ -701,7 +726,11 @@ class SessionController:
         return now < self._echo_gate_until
 
     def _watch_barge_in(self, chunk: np.ndarray, state: SessionState) -> bool:
-        """Hard interrupt when the user talks over TTS (VAD and/or energy spike)."""
+        """Two-phase barge: soft-pause TTS, then cancel only after sustained speech.
+
+        From soft-pause onward, interrupt audio is live-fed to ASR so the barge
+        utterance becomes the next user turn (not just a TTS stop).
+        """
         playing = False
         if self.playback is not None:
             try:
@@ -709,88 +738,182 @@ class SessionController:
             except Exception:
                 playing = False
         if state not in (SessionState.SPEAKING, SessionState.THINKING) and not playing:
-            self._barge_speech_ms = 0.0
-            self._barge_last_mono = None
-            self._echo_rms_ema = 0.0
-            self._echo_rms_ready = False
+            if not self._barge_asr_live:
+                self._reset_barge_tracker()
             return False
 
-        thr = float(getattr(self.cfg.session, "barge_in_vad_threshold", 0.32) or 0.32)
-        hold_ms = int(getattr(self.cfg.session, "barge_in_hold_ms", 80) or 80)
-        ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 1.55) or 1.55)
-        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.005) or 0.005)
+        thr = float(getattr(self.cfg.session, "barge_in_vad_threshold", 0.50) or 0.50)
+        pause_ms = int(getattr(self.cfg.session, "barge_in_pause_ms", 160) or 160)
+        confirm_ms = int(
+            getattr(self.cfg.session, "barge_in_confirm_ms", None)
+            or getattr(self.cfg.session, "barge_in_hold_ms", 320)
+            or 320
+        )
+        confirm_ms = max(confirm_ms, pause_ms)
+        ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 1.8) or 1.8)
+        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.012) or 0.012)
 
-        self._vad_buf = np.concatenate([self._vad_buf, chunk.astype(np.float32, copy=False)])
-        fired = False
-        while len(self._vad_buf) >= WINDOW:
-            frame = self._vad_buf[:WINDOW]
-            self._vad_buf = self._vad_buf[WINDOW:]
+        # Separate from ASR `_vad_buf` so soft-pause live capture isn't double-fed.
+        self._barge_vad_buf = np.concatenate(
+            [self._barge_vad_buf, chunk.astype(np.float32, copy=False)]
+        )
+        confirmed = False
+        speech_this_chunk = False
+        while len(self._barge_vad_buf) >= WINDOW:
+            frame = self._barge_vad_buf[:WINDOW]
+            self._barge_vad_buf = self._barge_vad_buf[WINDOW:]
             frame_ms = (WINDOW / 16000.0) * 1000.0
             rms = float(np.sqrt(np.mean(np.square(frame)) + 1e-12))
 
-            # Seed echo baseline low — never lock onto the first speech frame
-            # (that made ratio*EMA impossible to beat on barge).
             if not self._echo_rms_ready:
-                self._echo_rms_ema = min(rms, floor)
+                self._echo_rms_ema = min(rms, floor * 0.25)
                 self._echo_rms_ready = True
             else:
                 baseline = max(self._echo_rms_ema, 1e-6)
-                # Only adapt while the mic looks like residual echo / silence.
-                if rms < max(baseline * 1.25, floor * 0.8):
+                if rms < max(baseline * 1.25, floor * 0.5):
                     self._echo_rms_ema = 0.90 * self._echo_rms_ema + 0.10 * rms
 
-            # Hardware AEC (M1A): TTS barely appears in capture — use a soft absolute floor.
-            aec_like = self._echo_rms_ema < max(floor * 0.8, 0.004)
+            # Require absolute energy — never barge on near-silence.
+            aec_like = self._echo_rms_ema < max(floor * 0.5, 0.004)
             if aec_like:
-                energy_hit = rms >= max(floor * 0.5, 0.002)
+                energy_hit = rms >= floor
             else:
                 energy_hit = rms >= max(floor, self._echo_rms_ema * ratio)
 
             vad_hit = False
-            if self.vad:
+            if self.vad and energy_hit:
+                # Only run VAD when energy already looks like speech (avoids
+                # silence-boost false positives that cancelled short replies).
                 try:
-                    # Soft mics: normalize quiet frames for Silero only (not for RMS).
-                    peak = float(np.max(np.abs(frame))) if frame.size else 0.0
-                    vad_frame = frame
-                    if 1e-5 < peak < 0.08:
-                        vad_frame = np.clip(frame * (0.12 / peak), -1.0, 1.0).astype(np.float32)
-                    vad_hit = self.vad.prob(vad_frame) >= thr
+                    vad_hit = self.vad.prob(frame) >= thr
                 except Exception:
                     vad_hit = False
 
-            if energy_hit or vad_hit:
+            # Energy is mandatory; VAD can reinforce but never alone.
+            speech_hit = energy_hit
+
+            if speech_hit:
+                speech_this_chunk = True
                 self._barge_speech_ms += frame_ms
             else:
-                self._barge_speech_ms = max(0.0, self._barge_speech_ms - frame_ms * 0.6)
+                self._barge_speech_ms = max(0.0, self._barge_speech_ms - frame_ms * 0.85)
+                if self._barge_speech_ms <= 0 and self._barge_soft_paused:
+                    # Noise blip after soft pause — abandon barge; stay speaking if LLM still active.
+                    logger.info("barge soft-pause abandoned (noise)")
+                    self._abandon_soft_barge()
 
-            if self._barge_speech_ms >= hold_ms:
-                fired = True
+            if os.environ.get("ME3_BARGE_DEBUG"):
+                logger.info(
+                    "barge dbg rms=%.4f ema=%.4f E=%s V=%s soft=%s live=%s held=%.0f",
+                    rms,
+                    self._echo_rms_ema,
+                    energy_hit,
+                    vad_hit,
+                    self._barge_soft_paused,
+                    self._barge_asr_live,
+                    self._barge_speech_ms,
+                )
+
+            if self._barge_speech_ms >= pause_ms and not self._barge_soft_paused:
+                self._soft_barge_pause()
+            if self._barge_speech_ms >= confirm_ms:
+                confirmed = True
                 break
-        if not fired:
+
+        # Buffer interrupt audio from first energy hit through confirm (incl. short gaps).
+        if speech_this_chunk or self._barge_asr_buf or self._barge_asr_live:
+            self._barge_asr_buf.append(chunk.astype(np.float32, copy=True))
+            if sum(len(c) for c in self._barge_asr_buf) > 16000 * 4:
+                self._barge_asr_buf = self._barge_asr_buf[-40:]
+
+        if not confirmed:
             return False
         self._hard_barge_in(self._barge_speech_ms)
         return True
 
+    def _reset_barge_tracker(self, *, clear_asr_live: bool = True) -> None:
+        self._barge_speech_ms = 0.0
+        self._barge_last_mono = None
+        self._barge_soft_paused = False
+        self._barge_asr_buf.clear()
+        self._barge_vad_buf = np.zeros(0, dtype=np.float32)
+        if clear_asr_live:
+            self._barge_asr_live = False
+        self._echo_rms_ema = 0.0
+        self._echo_rms_ready = False
+
+    def _seed_barge_asr(self) -> None:
+        """Reset ASR once and replay buffered interrupt audio as the new utterance."""
+        if self._barge_asr_live:
+            return
+        buffered = list(self._barge_asr_buf)
+        self._barge_asr_buf.clear()
+        self._vad_buf = np.zeros(0, dtype=np.float32)
+        self._vad_in_speech = False
+        if self.asr:
+            try:
+                self.asr.reset_segment()
+            except Exception:
+                logger.exception("asr reset for barge seed failed")
+        if self.conversation:
+            self.conversation.turn_taker.reset()
+        self._barge_asr_live = True
+        for piece in buffered:
+            try:
+                self._forward_asr(piece, SessionState.LISTENING)
+            except Exception:
+                logger.exception("barge ASR seed failed")
+        logger.info("barge ASR capture started (%d chunks)", len(buffered))
+
+    def _abandon_soft_barge(self) -> None:
+        """Noise after soft-pause — drop interrupt capture and resume speaking path."""
+        was_live = self._barge_asr_live
+        self._barge_soft_paused = False
+        self._barge_asr_buf.clear()
+        self._barge_vad_buf = np.zeros(0, dtype=np.float32)
+        self._barge_asr_live = False
+        self._barge_keep_asr = False
+        self._vad_buf = np.zeros(0, dtype=np.float32)
+        self._vad_in_speech = False
+        if was_live and self.asr:
+            try:
+                self.asr.reset_segment()
+            except Exception:
+                logger.exception("asr reset after abandoned barge failed")
+        if was_live and self.conversation:
+            self.conversation.turn_taker.reset()
+
+    def _soft_barge_pause(self) -> None:
+        """Duck TTS immediately and start capturing the interrupt into ASR."""
+        self._barge_soft_paused = True
+        logger.info("barge soft-pause after %.0fms — capturing interrupt", self._barge_speech_ms)
+        if self.playback:
+            with self._lock:
+                self.utterance_generation = self.playback.flush()
+                self._audio_out_marked = False
+        # Start ASR on the interrupt right away (before confirm cancels the LLM).
+        self._seed_barge_asr()
+
     def _hard_barge_in(self, held_ms: float) -> None:
-        """Stop TTS + cancel the LLM turn immediately so the user can take the floor."""
+        """Confirmed barge: cancel LLM, keep ASR interrupt as the next user turn."""
         from me3.benchmark.marks import mark
 
         mark("interrupted")
-        logger.info("barge-in hard stop after %.0fms user speech", held_ms)
+        logger.info("barge-in confirmed after %.0fms — keeping interrupt as next turn", held_ms)
+        # Ensure ASR already has the interrupt (soft-pause normally seeded it).
+        self._seed_barge_asr()
+        self._barge_keep_asr = True
+        self._barge_soft_paused = False
         self._barge_speech_ms = 0.0
-        self._barge_last_mono = None
-        self._echo_rms_ema = 0.0
-        self._echo_rms_ready = False
-        hang = int(getattr(self.cfg.session, "barge_in_hangover_ms", 200) or 200)
-        self._echo_gate_until = time.monotonic() + hang / 1000.0
-        self._was_gating_asr = True
-        self._vad_buf = np.zeros(0, dtype=np.float32)
-        self._vad_in_speech = False
+        self._barge_asr_buf.clear()
+        # No echo hangover wipe — continue listening to the same utterance.
+        self._echo_gate_until = 0.0
+        self._was_gating_asr = False
         self._cancel_speech()
         if self.conversation:
             self.conversation.cancel_active(reason="barge_in")
             self.conversation.overlap.reset()
-            self.conversation.turn_taker.reset()
+            # Keep turn_taker / ASR partials from the interrupt — do not reset.
         self._set_state("listening")
 
     def _forward_asr(self, chunk: np.ndarray, state: SessionState) -> None:

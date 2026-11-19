@@ -53,13 +53,17 @@ class SessionConfig(BaseModel):
     # When True, do not feed ASR while bot audio is playing (laptop no-AEC default).
     # Sustained loud speech still barge-in via VAD (see barge_in_*).
     gate_asr_while_speaking: bool = True
-    # Barge-in: VAD and/or energy spike (tuned for M1A AEC + soft mics).
-    barge_in_vad_threshold: float = 0.32
-    barge_in_hold_ms: int = 80
-    barge_in_hangover_ms: int = 180
+    # Barge-in: require real mic energy (not silence-boosted VAD). Soft-pause TTS
+    # first; only cancel the LLM turn after confirm_ms of sustained speech.
+    barge_in_vad_threshold: float = 0.50
+    barge_in_pause_ms: int = 160
+    barge_in_confirm_ms: int = 320
+    barge_in_hangover_ms: int = 200
     # Mic RMS must exceed echo EMA * ratio (and absolute floor) to count as barge.
-    barge_in_energy_ratio: float = 1.55
-    barge_in_energy_floor: float = 0.005
+    barge_in_energy_ratio: float = 1.8
+    barge_in_energy_floor: float = 0.012
+    # Deprecated alias — prefer barge_in_confirm_ms.
+    barge_in_hold_ms: int = 320
     ack_delay_ms: int = 700
     backchannel_enabled: bool = False
     backchannel_cooldown_ms: int = 10000

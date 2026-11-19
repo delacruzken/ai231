@@ -43,12 +43,15 @@ session:
   # Sustained louder speech still interrupts (barge-in) via VAD hold.
   echo_hangover_ms: 450
   gate_asr_while_speaking: true
-  # M1A AEC + soft mic: lower floor/ratio/VAD so barge-in can fire
-  barge_in_vad_threshold: 0.32
-  barge_in_hold_ms: 80
-  barge_in_hangover_ms: 180
-  barge_in_energy_ratio: 1.55
-  barge_in_energy_floor: 0.005
+  # Barge: energy required; soft-pause TTS + start ASR on interrupt, then confirm
+  # cancels the LLM while keeping the captured interrupt as the next user turn.
+  barge_in_vad_threshold: 0.50
+  barge_in_pause_ms: 160
+  barge_in_confirm_ms: 320
+  barge_in_hold_ms: 320
+  barge_in_hangover_ms: 0
+  barge_in_energy_ratio: 1.8
+  barge_in_energy_floor: 0.012
   ack_delay_ms: 700
   backchannel_enabled: false
   backchannel_cooldown_ms: 10000
