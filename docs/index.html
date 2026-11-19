@@ -1,300 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="A showcase of the top three video games of 2026: Grand Theft Auto VI, Resident Evil Requiem, and Marvel's Wolverine." />
-  <title>Top 3 Video Games of 2026</title>
-  <style>
-    :root {
-      --bg: #0b1020;
-      --bg-alt: #121a2b;
-      --card: #151f35;
-      --text: #e8eefc;
-      --muted: #a9b7d6;
-      --accent: #66d9ff;
-      --accent-2: #ff7aa2;
-      --accent-3: #ffd166;
-      --border: rgba(255,255,255,0.08);
-      --shadow: 0 12px 30px rgba(0,0,0,0.35);
-      --radius: 18px;
-      --max: 1120px;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(102,217,255,0.12), transparent 28%),
-        radial-gradient(circle at top right, rgba(255,122,162,0.10), transparent 24%),
-        linear-gradient(180deg, #070b16 0%, var(--bg) 100%);
-      line-height: 1.6;
-    }
-    a { color: inherit; }
-    .wrap { width: min(calc(100% - 2rem), var(--max)); margin: 0 auto; }
-    header {
-      position: sticky; top: 0; z-index: 10;
-      backdrop-filter: blur(10px);
-      background: rgba(7,11,22,0.72);
-      border-bottom: 1px solid var(--border);
-    }
-    .nav {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; padding: 0.9rem 0;
-    }
-    .brand { font-weight: 800; letter-spacing: 0.02em; }
-    .brand span { color: var(--accent); }
-    nav ul { list-style: none; display: flex; gap: 0.35rem; padding: 0; margin: 0; flex-wrap: wrap; justify-content: flex-end; }
-    nav a {
-      text-decoration: none; color: var(--muted); font-size: 0.95rem;
-      padding: 0.45rem 0.7rem; border-radius: 999px;
-    }
-    nav a:hover, nav a:focus { color: var(--text); background: rgba(255,255,255,0.06); outline: none; }
-
-    .hero {
-      padding: 4.5rem 0 2.5rem;
-    }
-    .hero-grid {
-      display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 1.5rem; align-items: stretch;
-    }
-    .hero-copy, .hero-panel {
-      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-      border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow);
-    }
-    .hero-copy { padding: 2rem; }
-    .eyebrow {
-      display: inline-block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em;
-      color: var(--accent); background: rgba(102,217,255,0.12); border: 1px solid rgba(102,217,255,0.22);
-      padding: 0.3rem 0.6rem; border-radius: 999px; margin-bottom: 0.9rem;
-    }
-    h1 { margin: 0 0 0.75rem; font-size: clamp(2rem, 4.5vw, 3.4rem); line-height: 1.1; }
-    .lead { margin: 0; color: var(--muted); font-size: 1.05rem; max-width: 62ch; }
-    .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.4rem; }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      text-decoration: none; font-weight: 650; padding: 0.75rem 1rem; border-radius: 12px;
-      border: 1px solid var(--border);
-    }
-    .btn.primary { background: var(--accent); color: #041018; border-color: transparent; }
-    .btn.secondary { background: rgba(255,255,255,0.04); color: var(--text); }
-    .hero-panel { padding: 1.25rem; display: grid; gap: 0.75rem; align-content: start; }
-    .stat {
-      padding: 0.9rem; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-    }
-    .stat strong { display: block; font-size: 1.1rem; }
-    .stat span { color: var(--muted); font-size: 0.95rem; }
-
-    main { padding-bottom: 3rem; }
-    .section-head { margin: 2.2rem 0 1rem; }
-    .section-head h2 { margin: 0 0 0.25rem; font-size: clamp(1.45rem, 2.5vw, 2rem); }
-    .section-head p { margin: 0; color: var(--muted); }
-
-    .games { display: grid; gap: 1.25rem; }
-    .game {
-      display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 0;
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      overflow: hidden; box-shadow: var(--shadow);
-    }
-    .game-media {
-      position: relative; min-height: 280px; background: #0d1426;
-      display: flex; align-items: stretch;
-    }
-    .game-media img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-    }
-    .media-fallback {
-      position: absolute; inset: 0; display: grid; place-items: center; padding: 1.5rem;
-      text-align: center; color: rgba(232,238,252,0.92);
-      background:
-        linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01)),
-        var(--fallback-bg, linear-gradient(135deg, #1a2a4a, #0d1426));
-    }
-    .media-fallback .title { font-size: 1.35rem; font-weight: 800; margin-bottom: 0.25rem; }
-    .media-fallback .sub { color: var(--muted); font-size: 0.95rem; }
-    .game-body { padding: 1.35rem 1.35rem 1.4rem; }
-    .tag-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.65rem; }
-    .tag {
-      font-size: 0.78rem; font-weight: 650; padding: 0.28rem 0.55rem; border-radius: 999px;
-      background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted);
-    }
-    .game h3 { margin: 0 0 0.45rem; font-size: clamp(1.35rem, 2.2vw, 1.8rem); }
-    .meta { color: var(--muted); margin: 0 0 0.8rem; font-size: 0.95rem; }
-    .desc { margin: 0 0 1rem; }
-    .features h4 { margin: 0 0 0.45rem; font-size: 1rem; }
-    .features ul { margin: 0; padding-left: 1.15rem; color: var(--muted); }
-    .features li { margin: 0.28rem 0; }
-    .features li::marker { color: var(--accent); }
-
-    #gta .features li::marker, #gta .eyebrow-accent { color: var(--accent); }
-    #re9 .features li::marker { color: var(--accent-2); }
-    #wolverine .features li::marker { color: var(--accent-3); }
-    #gta .game-media { --fallback-bg: linear-gradient(135deg, #12304f, #0b1020 55%, #1b3a2a); }
-    #re9 .game-media { --fallback-bg: linear-gradient(135deg, #3a1520, #0b1020 55%, #2a1733); }
-    #wolverine .game-media { --fallback-bg: linear-gradient(135deg, #3a2b12, #0b1020 55%, #2b1a12); }
-
-    footer {
-      border-top: 1px solid var(--border); color: var(--muted);
-      padding: 1.5rem 0 2.2rem; font-size: 0.92rem;
-    }
-
-    @media (max-width: 900px) {
-      .hero-grid, .game { grid-template-columns: 1fr; }
-      .game-media { min-height: 220px; }
-    }
-    @media (max-width: 640px) {
-      .wrap { width: min(calc(100% - 1.25rem), var(--max)); }
-      .hero { padding-top: 2.5rem; }
-      .hero-copy, .game-body { padding: 1rem; }
-      nav ul { gap: 0.1rem; }
-      nav a { padding: 0.35rem 0.5rem; font-size: 0.88rem; }
-      .hero-actions { flex-direction: column; }
-      .btn { width: 100%; }
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A modern landing page showcasing three of the most anticipated video games: Grand Theft Auto VI, Resident Evil Requiem, and Marvel's Wolverine.">
+  <title>Top Games Spotlight | GTA VI, Resident Evil Requiem, Marvel's Wolverine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <div class="wrap nav">
-      <div class="brand">Game<span>Watch</span> 2026</div>
-      <nav aria-label="Game sections">
-        <ul>
-          <li><a href="#gta">GTA VI</a></li>
-          <li><a href="#re9">Resident Evil</a></li>
-          <li><a href="#wolverine">Wolverine</a></li>
-        </ul>
-      </nav>
+  <a class="skip-link" href="#games">Skip to game spotlight</a>
+
+  <header class="hero" id="top">
+    <div class="hero__bg" aria-hidden="true"></div>
+    <div class="container hero__content">
+      <p class="eyebrow">Games Landing Page</p>
+      <h1>Top Three Games to Watch</h1>
+      <p class="hero__lead">
+        Explore three headline-making titles across open-world crime, survival horror, and superhero action.
+        Each spotlight includes a quick overview, key features, and a cinematic visual theme.
+      </p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="#games">Explore the lineup</a>
+        <a class="btn btn--ghost" href="#about">About this page</a>
+      </div>
     </div>
   </header>
 
   <main>
-    <section class="hero">
-      <div class="wrap hero-grid">
-        <div class="hero-copy">
-          <div class="eyebrow">2026 Spotlight</div>
-          <h1>Top 3 Video Games of 2026</h1>
-          <p class="lead">A quick landing-page showcase of three of the year’s most anticipated releases: Rockstar’s return to Vice City, Capcom’s next chapter of survival horror, and Insomniac’s brutal take on Marvel’s Wolverine.</p>
-          <div class="hero-actions">
-            <a class="btn primary" href="#gta">Explore the games</a>
-            <a class="btn secondary" href="#wolverine">Jump to Wolverine</a>
-          </div>
+    <section class="section intro" id="about">
+      <div class="container intro__grid">
+        <div>
+          <h2>Built as a standalone spotlight</h2>
+          <p>
+            This responsive landing page is designed to work on its own, making it easy to publish to a GitHub Pages
+            docs root or host as a static page. The layout adapts from mobile screens to large desktops.
+          </p>
         </div>
-        <aside class="hero-panel" aria-label="Highlights">
-          <div class="stat"><strong>3 flagship releases</strong><span>Open-world crime, survival horror, and action-adventure.</span></div>
-          <div class="stat"><strong>Built for every screen</strong><span>Responsive layout designed for mobile and desktop.</span></div>
-          <div class="stat"><strong>At-a-glance details</strong><span>Descriptions and key features for each game.</span></div>
-        </aside>
+        <ul class="highlights" aria-label="Page highlights">
+          <li><strong>3</strong><span>Featured games</span></li>
+          <li><strong>Responsive</strong><span>Mobile and desktop</span></li>
+          <li><strong>Standalone</strong><span>HTML, CSS, and JS</span></li>
+        </ul>
       </div>
     </section>
 
-    <section class="wrap" aria-labelledby="games-heading">
-      <div class="section-head">
-        <h2 id="games-heading">Featured Games</h2>
-        <p>Highlights, platforms, and what makes each release stand out.</p>
-      </div>
+    <section class="section games" id="games" aria-labelledby="games-title">
+      <div class="container">
+        <div class="section-heading">
+          <p class="eyebrow">Featured Lineup</p>
+          <h2 id="games-title">Game Spotlights</h2>
+          <p>Three distinct experiences, each bringing a different style of intensity and immersion.</p>
+        </div>
 
-      <div class="games">
-        <article class="game" id="gta">
-          <div class="game-media">
-            <img src="https://placehold.co/1200x800/12304f/e8eefc?text=Grand+Theft+Auto+VI" alt="Grand Theft Auto VI promotional image placeholder" loading="lazy" width="1200" height="800" />
-            <div class="media-fallback" aria-hidden="true">
-              <div>
-                <div class="title">Grand Theft Auto VI</div>
-                <div class="sub">Vice City returns</div>
-              </div>
+        <div class="cards">
+          <article class="card reveal" id="gta-vi">
+            <div class="card__media">
+              <img
+                src="https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1400&q=80"
+                alt="Neon-lit city skyline at night, evoking the vibrant urban atmosphere associated with Grand Theft Auto VI"
+                loading="lazy"
+                width="1400"
+                height="900"
+              >
+              <span class="badge">Open World</span>
             </div>
-          </div>
-          <div class="game-body">
-            <div class="tag-row">
-              <span class="tag">Action-Adventure</span>
-              <span class="tag">Open World</span>
-              <span class="tag">Rockstar Games</span>
-            </div>
-            <h3>Grand Theft Auto VI</h3>
-            <p class="meta">Setting: Vice City and the state of Leonida &middot; Platforms: PlayStation 5, Xbox Series X|S</p>
-            <p class="desc">Grand Theft Auto VI brings Rockstar’s blockbuster crime saga to a modern-day Vice City, following the intertwined story of Lucia and Jason. Set across the vibrant, dangerous state of Leonida, the game aims to deliver a massive open world filled with story-driven missions, dynamic encounters, and the series’ signature satire.</p>
-            <div class="features">
-              <h4>Key features</h4>
-              <ul>
-                <li>Dual-protagonist narrative centered on Lucia and Jason.</li>
-                <li>Expansive open world spanning Vice City and surrounding Leonida regions.</li>
-                <li>Next-generation visuals, animation, and world density on current-gen consoles.</li>
-                <li>A mix of cinematic heists, free-roam exploration, and emergent activities.</li>
+            <div class="card__body">
+              <h3>Grand Theft Auto VI</h3>
+              <p class="card__description">
+                Grand Theft Auto VI returns players to the sun-soaked, neon-charged state of Leonida, with Vice City
+                at its center. The game follows the intertwined story of Lucia and Jason as they navigate crime,
+                ambition, and survival in a sprawling modern world built for exploration, chaos, and unforgettable set pieces.
+              </p>
+              <h4>Key Features</h4>
+              <ul class="features">
+                <li>Expansive open world inspired by Vice City and the broader Leonida region.</li>
+                <li>Story-driven experience centered on dual protagonists Lucia and Jason.</li>
+                <li>Dense urban streets, beaches, and wild areas designed for emergent gameplay.</li>
+                <li>High-energy action, driving, and mission variety in Rockstar's signature style.</li>
               </ul>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <article class="game" id="re9">
-          <div class="game-media">
-            <img src="https://placehold.co/1200x800/3a1520/e8eefc?text=Resident+Evil+Requiem" alt="Resident Evil Requiem promotional image placeholder" loading="lazy" width="1200" height="800" />
-            <div class="media-fallback" aria-hidden="true">
-              <div>
-                <div class="title">Resident Evil Requiem</div>
-                <div class="sub">Survival horror evolves</div>
-              </div>
+          <article class="card reveal" id="resident-evil-requiem">
+            <div class="card__media">
+              <img
+                src="https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=1400&q=80"
+                alt="Dark foggy corridor with dramatic lighting, reflecting the tense survival horror mood of Resident Evil Requiem"
+                loading="lazy"
+                width="1400"
+                height="900"
+              >
+              <span class="badge badge--horror">Survival Horror</span>
             </div>
-          </div>
-          <div class="game-body">
-            <div class="tag-row">
-              <span class="tag">Survival Horror</span>
-              <span class="tag">Action</span>
-              <span class="tag">Capcom</span>
-            </div>
-            <h3>Resident Evil Requiem</h3>
-            <p class="meta">Genre focus: Tension, investigation, and combat &middot; Platforms: PlayStation 5, Xbox Series X|S, PC</p>
-            <p class="desc">Resident Evil Requiem continues Capcom’s acclaimed horror legacy with a new nightmare built around atmosphere, mystery, and resourceful survival. Blending investigation with intense encounters, it challenges players to manage limited supplies, read dangerous spaces, and uncover the truth behind its unfolding biohazard threat.</p>
-            <div class="features">
-              <h4>Key features</h4>
-              <ul>
-                <li>Survival-horror gameplay balancing exploration, puzzles, and combat.</li>
-                <li>Tense atmosphere with an emphasis on dread, pacing, and environmental storytelling.</li>
-                <li>Strategic resource management where every decision can matter.</li>
-                <li>Modern presentation powered by Capcom’s RE Engine technology.</li>
+            <div class="card__body">
+              <h3>Resident Evil Requiem</h3>
+              <p class="card__description">
+                Resident Evil Requiem leans into the franchise's legacy of dread, mystery, and carefully paced terror.
+                Players can expect an unsettling journey where every resource matters, every corridor feels dangerous,
+                and the unknown waits just beyond the next door.
+              </p>
+              <h4>Key Features</h4>
+              <ul class="features">
+                <li>Atmospheric survival horror focused on tension, exploration, and suspense.</li>
+                <li>Resource management that rewards planning and careful decision-making.</li>
+                <li>Haunting environments designed to keep players alert and uncertain.</li>
+                <li>Encounters that emphasize vulnerability, strategy, and memorable scares.</li>
               </ul>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <article class="game" id="wolverine">
-          <div class="game-media">
-            <img src="https://placehold.co/1200x800/3a2b12/e8eefc?text=Marvel%27s+Wolverine" alt="Marvel's Wolverine promotional image placeholder" loading="lazy" width="1200" height="800" />
-            <div class="media-fallback" aria-hidden="true">
-              <div>
-                <div class="title">Marvel’s Wolverine</div>
-                <div class="sub">Unleash the berserker</div>
-              </div>
+          <article class="card reveal" id="marvels-wolverine">
+            <div class="card__media">
+              <img
+                src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1400&q=80"
+                alt="Moody cinematic lighting in an urban setting, suggesting the gritty action tone of Marvel's Wolverine"
+                loading="lazy"
+                width="1400"
+                height="900"
+              >
+              <span class="badge badge--action">Action Adventure</span>
             </div>
-          </div>
-          <div class="game-body">
-            <div class="tag-row">
-              <span class="tag">Action-Adventure</span>
-              <span class="tag">Super Hero</span>
-              <span class="tag">Insomniac Games</span>
-            </div>
-            <h3>Marvel’s Wolverine</h3>
-            <p class="meta">Hero: Logan / Wolverine &middot; Platform: PlayStation 5</p>
-            <p class="desc">Marvel’s Wolverine is Insomniac Games’ standalone action-adventure starring Logan, one of Marvel’s most complex and formidable heroes. Designed to capture Wolverine’s raw intensity, the game promises hard-hitting combat, a character-driven story, and a darker tone that reflects the edge of the adamantium-clawed mutant.</p>
-            <div class="features">
-              <h4>Key features</h4>
-              <ul>
-                <li>Original, character-focused story built around Logan’s identity and past.</li>
-                <li>Visceral, close-quarters combat that channels Wolverine’s ferocity.</li>
-                <li>Cinematic action-adventure design from the studio behind Marvel’s Spider-Man.</li>
-                <li>A mature tone aimed at capturing the grit of the character.</li>
+            <div class="card__body">
+              <h3>Marvel's Wolverine</h3>
+              <p class="card__description">
+                Marvel's Wolverine promises a gritty, character-driven action adventure starring Logan. Built around
+                close-quarters intensity and emotional storytelling, the game aims to capture Wolverine's ferocity,
+                resilience, and complicated humanity.
+              </p>
+              <h4>Key Features</h4>
+              <ul class="features">
+                <li>Visceral combat centered on Wolverine's speed, strength, and claws.</li>
+                <li>Narrative-driven adventure that explores Logan's character and conflicts.</li>
+                <li>Cinematic presentation with a darker, grounded superhero tone.</li>
+                <li>Action set pieces balanced with moments of story and atmosphere.</li>
               </ul>
             </div>
-          </div>
-        </article>
+          </article>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="wrap">
-      <p>Fan-made showcase landing page for 2026 game highlights. Game titles, characters, and trademarks belong to their respective owners. Details reflect publicly discussed expectations and announced information; verify final release details with official publisher sources.</p>
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p><strong>Top Games Spotlight</strong> — a standalone static landing page.</p>
+      <a href="#top">Back to top</a>
     </div>
   </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>

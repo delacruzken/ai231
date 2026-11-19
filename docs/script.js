@@ -1,31 +1,24 @@
-(function () {
-  var year = document.getElementById('year');
-  if (year) {
-    year.textContent = String(new Date().getFullYear());
-  }
+document.documentElement.classList.add('js');
 
-  var toggle = document.querySelector('.nav-toggle');
-  var nav = document.getElementById('site-nav');
-  if (!toggle || !nav) return;
+const revealItems = document.querySelectorAll('.reveal');
 
-  toggle.addEventListener('click', function () {
-    var open = nav.classList.toggle('is-open');
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-
-  nav.addEventListener('click', function (event) {
-    var target = event.target;
-    if (target && target.tagName === 'A' && nav.classList.contains('is-open')) {
-      nav.classList.remove('is-open');
-      toggle.setAttribute('aria-expanded', 'false');
+if ('IntersectionObserver' in window) {
+  const observer = new IntersectionObserver(
+    (entries, obs) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          obs.unobserve(entry.target);
+        }
+      });
+    },
+    {
+      threshold: 0.15,
+      rootMargin: '0px 0px -40px 0px',
     }
-  });
+  );
 
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && nav.classList.contains('is-open')) {
-      nav.classList.remove('is-open');
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.focus();
-    }
-  });
-})();
+  revealItems.forEach((item) => observer.observe(item));
+} else {
+  revealItems.forEach((item) => item.classList.add('is-visible'));
+}
