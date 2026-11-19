@@ -57,6 +57,8 @@ def test_owner_profile_approved_only(tmp_path: Path):
     prompt = build_system_prompt(owner_profile=got, retrieval_provider="mock")
     assert "Ada" in prompt
     assert "biometric" not in prompt.lower() or "Do not claim biometric" in prompt
+    assert "Never ask permission to search" in prompt
+    assert "web_search" in prompt
     store.close()
 
 

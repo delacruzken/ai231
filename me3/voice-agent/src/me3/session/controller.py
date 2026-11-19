@@ -715,10 +715,10 @@ class SessionController:
             self._echo_rms_ready = False
             return False
 
-        thr = float(getattr(self.cfg.session, "barge_in_vad_threshold", 0.45) or 0.45)
-        hold_ms = int(getattr(self.cfg.session, "barge_in_hold_ms", 120) or 120)
-        ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 2.2) or 2.2)
-        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.018) or 0.018)
+        thr = float(getattr(self.cfg.session, "barge_in_vad_threshold", 0.32) or 0.32)
+        hold_ms = int(getattr(self.cfg.session, "barge_in_hold_ms", 80) or 80)
+        ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 1.55) or 1.55)
+        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.005) or 0.005)
 
         self._vad_buf = np.concatenate([self._vad_buf, chunk.astype(np.float32, copy=False)])
         fired = False
@@ -728,22 +728,33 @@ class SessionController:
             frame_ms = (WINDOW / 16000.0) * 1000.0
             rms = float(np.sqrt(np.mean(np.square(frame)) + 1e-12))
 
-            # Track TTS→mic echo baseline; barge when mic gets clearly louder.
+            # Seed echo baseline low — never lock onto the first speech frame
+            # (that made ratio*EMA impossible to beat on barge).
             if not self._echo_rms_ready:
-                self._echo_rms_ema = rms
+                self._echo_rms_ema = min(rms, floor)
                 self._echo_rms_ready = True
             else:
-                # Adapt baseline slowly while quiet; freeze when a spike is present.
-                baseline = max(self._echo_rms_ema, floor)
-                if rms < baseline * 1.35:
-                    self._echo_rms_ema = 0.92 * self._echo_rms_ema + 0.08 * rms
+                baseline = max(self._echo_rms_ema, 1e-6)
+                # Only adapt while the mic looks like residual echo / silence.
+                if rms < max(baseline * 1.25, floor * 0.8):
+                    self._echo_rms_ema = 0.90 * self._echo_rms_ema + 0.10 * rms
 
-            energy_hit = rms >= max(floor, self._echo_rms_ema * ratio)
+            # Hardware AEC (M1A): TTS barely appears in capture — use a soft absolute floor.
+            aec_like = self._echo_rms_ema < max(floor * 0.8, 0.004)
+            if aec_like:
+                energy_hit = rms >= max(floor * 0.5, 0.002)
+            else:
+                energy_hit = rms >= max(floor, self._echo_rms_ema * ratio)
 
             vad_hit = False
             if self.vad:
                 try:
-                    vad_hit = self.vad.prob(frame) >= thr
+                    # Soft mics: normalize quiet frames for Silero only (not for RMS).
+                    peak = float(np.max(np.abs(frame))) if frame.size else 0.0
+                    vad_frame = frame
+                    if 1e-5 < peak < 0.08:
+                        vad_frame = np.clip(frame * (0.12 / peak), -1.0, 1.0).astype(np.float32)
+                    vad_hit = self.vad.prob(vad_frame) >= thr
                 except Exception:
                     vad_hit = False
 

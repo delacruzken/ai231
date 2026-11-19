@@ -238,6 +238,47 @@ body {
   font-weight: 600;
 }
 
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.panel-heading h2 {
+  margin: 0;
+}
+
+.copy-log {
+  appearance: none;
+  border: 1px solid #3a4d68;
+  background: #152033;
+  color: var(--ink);
+  border-radius: 0.4rem;
+  padding: 0.28rem 0.65rem;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copy-log:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.copy-log:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.copy-log.copied {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
 .task-row {
   font-size: 0.85rem;
   line-height: 1.4;

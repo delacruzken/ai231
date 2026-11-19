@@ -29,6 +29,19 @@ def test_turn_taker_complete_question_fast():
     assert tt.evaluate(now=now).action == "commit"
 
 
+def test_turn_taker_truncated_and_open_stems_wait():
+    tt = TurnTaker(TurnTakerConfig(silence_normal_ms=400, silence_incomplete_ms=1500))
+    for text in ("Who is the Pre", "Do you know the G-C", "What is the time to"):
+        assert tt.is_incomplete(text), text
+        tt.reset()
+        tt.on_partial(text)
+        now = time.monotonic()
+        tt.last_speech_mono = now - 0.5
+        assert tt.evaluate(now=now).action == "none", text
+        tt.last_speech_mono = now - 1.6
+        assert tt.evaluate(now=now).action == "commit", text
+
+
 def test_turn_taker_partial_growth_resets_silence_not_same_text():
     tt = TurnTaker(TurnTakerConfig(silence_normal_ms=400))
     tt.on_partial("What time")

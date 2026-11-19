@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 from uuid import uuid4
 
+from me3.conversation.live_facts import needs_live_web_evidence
 from me3.tasks.tools import TOOL_DEFINITIONS, dispatch_tool
 
 logger = logging.getLogger("me3.conversation.llm")
@@ -192,15 +193,11 @@ class MockLLM(BaseLLM):
                 }
             )
             return results
-        # web research
-        m = re.search(
-            r"(?:search(?:\s+the)?\s+web(?:\s+for)?|look\s+up|research|who\s+won|what\s+are)\s+(.+)$",
-            user,
-            re.I,
-        )
-        if m or any(k in lower for k in ("senate", "search for", "google")):
-            query = m.group(1).strip() if m else user
-            results.append({"name": "web_search", "result": executor("web_search", {"query": query})})
+        # web research — same policy as live Haiku: force search for world facts
+        if needs_live_web_evidence(user) or any(
+            k in lower for k in ("search for", "google", "look up", "research")
+        ):
+            results.append({"name": "web_search", "result": executor("web_search", {"query": user})})
             return results
         return results
 
@@ -326,13 +323,19 @@ class AnthropicLLM(BaseLLM):
             if m["role"] in ("user", "assistant")
         ]
         tool_results_acc: list[dict[str, Any]] = []
+        last_user = ""
+        for m in reversed(messages):
+            if m.get("role") == "user" and isinstance(m.get("content"), str):
+                last_user = m["content"]
+                break
+        force_web = needs_live_web_evidence(last_user)
         try:
             if tools_enabled and tool_executor:
                 # Tool round(s) non-streaming for reliability, then stream final text.
                 # Tool rounds need a high max_tokens budget: jobs_submit specifications
                 # easily exceed 120 tokens; that limit caused Haiku to skip the tool and
                 # only say "I'll submit…" without creating a job.
-                for _ in range(4):
+                for round_i in range(4):
                     with self._lock:
                         if tid in self._cancel:
                             return
@@ -343,6 +346,15 @@ class AnthropicLLM(BaseLLM):
                         "messages": api_messages,
                         "tools": TOOL_DEFINITIONS,
                     }
+                    # First round: force web_search for live-fact questions so Haiku
+                    # cannot confidently answer from stale training memory (e.g. presidents).
+                    if (
+                        round_i == 0
+                        and force_web
+                        and not any(tr.get("name") == "web_search" for tr in tool_results_acc)
+                    ):
+                        kwargs["tool_choice"] = {"type": "tool", "name": "web_search"}
+                        logger.info("forcing web_search for live-fact turn=%s", tid)
                     resp = self._client.messages.create(**kwargs)
                     if resp.stop_reason == "tool_use":
                         tool_uses = [b for b in resp.content if b.type == "tool_use"]
@@ -365,6 +377,13 @@ class AnthropicLLM(BaseLLM):
                         continue
                     # Final text response — stream chunks from assembled text
                     text = "".join(getattr(b, "text", "") for b in resp.content if hasattr(b, "text"))
+                    if force_web and not any(tr.get("name") == "web_search" for tr in tool_results_acc):
+                        # Safety net: never speak a live-fact guess without evidence.
+                        logger.warning("live-fact answer blocked without web_search turn=%s", tid)
+                        text = (
+                            "I could not verify that from a live search. "
+                            "Please ask again in a moment."
+                        )
                     if not text.strip() and tool_results_acc:
                         text = _spoken_fallback_from_tools(tool_results_acc)
                     if text:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -186,15 +187,22 @@ class PublicationService:
 
         candidates = _completed_job_workspaces(job_id=job_id, hint=hint)
         if not candidates:
+            if (hint or "").strip():
+                raise ValueError(
+                    f"No publishable workspace matched hint {hint!r}. "
+                    "The latest completed job may lack index.html (e.g. mock stub before "
+                    "fix), or OpenCode was offline. Rebuild that page, then publish again."
+                )
             raise ValueError(
                 "No publishable job workspace found. Complete a build job first, "
                 "or pass source_dir explicitly."
             )
         chosen = candidates[0]
         logger.info(
-            "auto-resolved publish source_dir=%s job=%s",
+            "auto-resolved publish source_dir=%s job=%s hint=%r",
             chosen["workspace_path"],
             chosen.get("id"),
+            hint,
         )
         return chosen["workspace_path"]
 
@@ -371,13 +379,21 @@ def _completed_job_workspaces(
             )
         if not hint_l:
             return out
-        matched = [
-            i
-            for i in out
-            if hint_l in (i["specification"] or "").lower() or hint_l in i["workspace_path"].lower()
-        ]
-        rest = [i for i in out if i not in matched]
-        return matched + rest
+        # Tokenize hint so "Edward Hyde" matches specs mentioning both words.
+        tokens = [t for t in re.findall(r"[a-z0-9]+", hint_l) if len(t) > 2]
+        if not tokens:
+            tokens = [hint_l]
+
+        def _score(item: dict[str, Any]) -> int:
+            blob = f"{item.get('specification') or ''} {item.get('workspace_path') or ''}".lower()
+            return sum(1 for t in tokens if t in blob)
+
+        matched = [i for i in out if _score(i) > 0]
+        if matched:
+            matched.sort(key=lambda i: (-_score(i),))
+            return matched
+        # Hint provided but nothing matched — do NOT fall back to an unrelated site.
+        return []
     finally:
         conn.close()
 

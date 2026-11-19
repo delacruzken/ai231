@@ -76,8 +76,9 @@ class MockPublisher:
         expect_substring: str | None = None,
         retries: int = 1,
         delay_s: float = 0.0,
+        timeout_s: float | None = None,
     ) -> dict[str, Any]:
-        _ = retries, delay_s
+        _ = retries, delay_s, timeout_s
         url = self.default_pages_url() + "/"
         body = f"<html><body>{self._published_marker}</body></html>"
         if self.last_publish:

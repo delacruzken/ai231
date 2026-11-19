@@ -15,6 +15,7 @@ from me3.conversation.llm import make_llm
 from me3.conversation.memory import ConversationMemory
 from me3.conversation.overlap import OverlapClassifier, OverlapConfig
 from me3.conversation.persona import build_system_prompt
+from me3.conversation.asr_filters import is_asr_ghost
 from me3.conversation.turn_taker import TurnTaker, TurnTakerConfig
 from me3.delegation.service import DelegationService
 from me3.profile.owner import OwnerProfileStore
@@ -233,6 +234,10 @@ class ConversationOrchestrator:
     def commit_user_turn(self, text: str, *, speculative: bool = False) -> str:
         text = text.strip()
         if not text:
+            return ""
+        if is_asr_ghost(text):
+            logger.info("skip ASR ghost commit: %s", text[:40])
+            self.turn_taker.reset()
             return ""
         norm = re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
         now = time.monotonic()

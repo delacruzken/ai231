@@ -12,6 +12,7 @@ from uuid import uuid4
 import numpy as np
 
 from me3.config import AppConfig, load_config
+from me3.speech.agc import apply_agc
 from me3.speech.paths import asr_paths
 
 
@@ -74,8 +75,13 @@ class StreamingAsrEngine:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._agc_ema: float | None = None
 
-        self._recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
+        decoding = (self.cfg.speech.asr_decoding_method or "greedy_search").strip()
+        max_paths = max(1, int(self.cfg.speech.asr_max_active_paths))
+        model_type = (self.cfg.models.asr_model_type or "").strip()
+
+        kwargs = dict(
             tokens=str(paths["tokens"]),
             encoder=str(paths["encoder"]),
             decoder=str(paths["decoder"]),
@@ -83,10 +89,18 @@ class StreamingAsrEngine:
             num_threads=max(1, self.cfg.models.asr_threads),
             sample_rate=16000,
             enable_endpoint_detection=True,
-            decoding_method="greedy_search",
+            rule1_min_trailing_silence=float(self.cfg.speech.asr_endpoint_rule1_trailing_silence),
+            rule2_min_trailing_silence=float(self.cfg.speech.asr_endpoint_rule2_trailing_silence),
+            rule3_min_utterance_length=float(self.cfg.speech.asr_endpoint_rule3_min_utterance_length),
+            decoding_method=decoding,
+            max_active_paths=max_paths,
             provider="cpu",
-            model_type="zipformer",
         )
+        # Kroko Zipformer2 requires empty/auto model_type; legacy Zipformer needs "zipformer".
+        if model_type:
+            kwargs["model_type"] = model_type
+
+        self._recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(**kwargs)
         self._stream = self._recognizer.create_stream()
 
     def start(self) -> None:
@@ -119,6 +133,7 @@ class StreamingAsrEngine:
         with self._lock:
             self._segment_id = str(uuid4())
             self._last_text = ""
+            self._agc_ema = None
             self._stream = self._recognizer.create_stream()
             return self._segment_id
 
@@ -128,6 +143,14 @@ class StreamingAsrEngine:
             samples = samples.astype(np.float32)
         if samples.ndim != 1:
             samples = samples.reshape(-1)
+        if self.cfg.audio.agc_enabled:
+            samples, self._agc_ema = apply_agc(
+                samples,
+                target_rms=float(self.cfg.audio.agc_target_rms),
+                max_gain=float(self.cfg.audio.agc_max_gain),
+                min_rms=float(self.cfg.audio.agc_min_rms),
+                ema=self._agc_ema,
+            )
         t0 = time.monotonic()
         self._audio_q.put(samples.copy(), block=block)
         waited = (time.monotonic() - t0) * 1000.0

@@ -111,6 +111,9 @@ const typewriters = new Map<string, TypewriterState>();
 let typewriterTimer: number | null = null;
 const TYPEWRITER_MS = 18;
 const TYPEWRITER_CHARS = 2;
+/** Brief "Copied" label after Copy log (survives re-renders). */
+let copyLogFlashUntil = 0;
+let copyLogFlashTimer: number | null = null;
 
 async function refreshTasks() {
   const token = getToken();
@@ -177,6 +180,46 @@ function formatClock(ts?: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+
+/** Chronological (oldest → newest) plain-text log for pasting into chat / validation. */
+function formatConversationLog(rows: TranscriptRow[]): string {
+  const lines: string[] = ["Conversation"];
+  for (const r of coalesceTranscript(rows)) {
+    const text = (r.text || "").trim();
+    if (!text) continue;
+    const who = (r.role || "user") === "assistant" ? "Kaki" : "You";
+    const clock = formatClock(r.ts);
+    lines.push(who);
+    if (clock) lines.push(clock);
+    lines.push(text);
+  }
+  return lines.join("\n");
+}
+
+async function copyConversationLog(): Promise<boolean> {
+  const text = formatConversationLog(session.transcript || []);
+  if (text === "Conversation") return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback when clipboard permission is denied / insecure context.
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } finally {
+      document.body.removeChild(ta);
+    }
+    return ok;
+  }
 }
 
 function normUtt(text?: string): string {
@@ -558,7 +601,16 @@ function render() {
 
       <main class="col col-conversation">
         <section class="transcript-panel">
-          <h2>Conversation</h2>
+          <div class="panel-heading">
+            <h2>Conversation</h2>
+            <button
+              type="button"
+              class="copy-log ${Date.now() < copyLogFlashUntil ? "copied" : ""}"
+              id="copy-log"
+              ${displayTurns.length === 0 ? "disabled" : ""}
+              title="Copy conversation log (oldest → newest)"
+            >${Date.now() < copyLogFlashUntil ? "Copied" : "Copy log"}</button>
+          </div>
           <div class="transcript" id="transcript">${lines}</div>
         </section>
         <details class="diagnostics">
@@ -613,6 +665,22 @@ function render() {
   document.querySelector("#refresh")?.addEventListener("click", () => {
     send({ type: "get_session" });
     void refreshTasks();
+  });
+  document.querySelector("#copy-log")?.addEventListener("click", () => {
+    void copyConversationLog().then((ok) => {
+      if (!ok) {
+        pushToast("Could not copy conversation log", "warn");
+        return;
+      }
+      copyLogFlashUntil = Date.now() + 1600;
+      if (copyLogFlashTimer != null) window.clearTimeout(copyLogFlashTimer);
+      copyLogFlashTimer = window.setTimeout(() => {
+        copyLogFlashUntil = 0;
+        copyLogFlashTimer = null;
+        render();
+      }, 1600);
+      pushToast("Conversation log copied", "ok");
+    });
   });
   document.querySelectorAll("[data-job-approve]").forEach((el) => {
     el.addEventListener("click", async () => {

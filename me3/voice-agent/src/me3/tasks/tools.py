@@ -94,8 +94,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "web_search",
         "description": (
             "Search the web via Tavily. Returns evidence envelopes with URL/title/content. "
-            "Cite sources; do not treat snippets as authority. "
-            "If results are ambiguous or conflict, ask one short clarifying question."
+            "Required for any external/world fact that can change over time — not only "
+            "politics. Call it before answering; never use training memory for those "
+            "facts and never ask permission to search. Speak from evidence only; if "
+            "results conflict, ask one short clarifier."
         ),
         "input_schema": {
             "type": "object",
@@ -238,7 +240,13 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "description": "Optional; auto-resolved from completed jobs when omitted",
                 },
                 "job_id": {"type": "string"},
-                "hint": {"type": "string", "description": "Keyword to pick among jobs, e.g. games"},
+                "hint": {
+                    "type": "string",
+                    "description": (
+                        "Required when several jobs exist — keywords from the page "
+                        "(e.g. 'Edward Hyde'). Refuses unrelated newer/older sites."
+                    ),
+                },
                 "message": {"type": "string", "description": "Commit message"},
                 "confirm": {
                     "type": "boolean",

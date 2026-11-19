@@ -27,22 +27,28 @@ audio:
   capture_blocksize: 1024
   playback_blocksize: 1024
   capture_queue_max: 64
+  # Soft AGC on ASR feed only (quiet M1A / laptop mics)
+  agc_enabled: true
+  agc_target_rms: 0.10
+  agc_max_gain: 12.0
+  agc_min_rms: 0.001
 
 session:
-  # Silence heuristics (ms) — tuned for snappier voice commits vs text turns
-  # (text bypasses silence). Normal ~0.4s after last speech; incomplete waits longer.
-  silence_normal_ms: 400
-  silence_incomplete_ms: 900
-  silence_clarification_ms: 1600
+  # Silence heuristics (ms). Prefer waiting over cutting mid-phrase (M1A live).
+  # Incomplete / open questions (no ? yet, truncated tails like "Pre") use the longer gate.
+  silence_normal_ms: 700
+  silence_incomplete_ms: 1500
+  silence_clarification_ms: 2400
   # Laptop speaker→mic: mute ASR while TTS plays + short hangover after.
   # Sustained louder speech still interrupts (barge-in) via VAD hold.
   echo_hangover_ms: 450
   gate_asr_while_speaking: true
-  barge_in_vad_threshold: 0.45
-  barge_in_hold_ms: 120
-  barge_in_hangover_ms: 200
-  barge_in_energy_ratio: 2.2
-  barge_in_energy_floor: 0.018
+  # M1A AEC + soft mic: lower floor/ratio/VAD so barge-in can fire
+  barge_in_vad_threshold: 0.32
+  barge_in_hold_ms: 80
+  barge_in_hangover_ms: 180
+  barge_in_energy_ratio: 1.55
+  barge_in_energy_floor: 0.005
   ack_delay_ms: 700
   backchannel_enabled: false
   backchannel_cooldown_ms: 10000
@@ -56,13 +62,15 @@ session:
   locale: en_PH
 
 models:
-  asr: sherpa-onnx-streaming-zipformer-en-2023-02-21-int8
+  asr: sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06
   tts: en_US-lessac-medium
   vad: silero-vad
   llm: claude-haiku-4-5  # confirm exact API id at first live call
   asr_threads: 2
   tts_threads: 1
   vad_threads: 1
+  # Empty = sherpa auto-detect (required for Kroko). Legacy LibriSpeech Zipformer: "zipformer"
+  asr_model_type: ""
 
 speech:
   asr_queue_max: 64
@@ -73,6 +81,12 @@ speech:
   tts_port: 8766
   vad_threshold: 0.5
   vad_window: 512
+  asr_decoding_method: modified_beam_search
+  asr_max_active_paths: 4
+  # Sherpa endpoint (seconds of trailing silence before ASR finalizes a segment)
+  asr_endpoint_rule1_trailing_silence: 2.8
+  asr_endpoint_rule2_trailing_silence: 1.8
+  asr_endpoint_rule3_min_utterance_length: 20.0
 
 ui:
   host: 127.0.0.1
