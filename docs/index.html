@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All About Dogs</title>
+    <title>Candles - Warmth & Ambiance</title>
     <style>
         * {
             margin: 0;
@@ -15,195 +15,240 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            background-color: #fafafa;
         }
 
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
             color: white;
-            padding: 40px 30px;
+            padding: 3rem 1rem;
             text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
         }
 
         header p {
-            font-size: 1.1em;
+            font-size: 1.1rem;
             opacity: 0.9;
         }
 
-        .content {
-            padding: 40px 30px;
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
         }
 
-        .introduction {
-            margin-bottom: 40px;
-            padding-bottom: 30px;
-            border-bottom: 2px solid #e0e0e0;
+        section {
+            margin-bottom: 4rem;
         }
 
-        .introduction h2 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.8em;
+        section h2 {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            border-bottom: 3px solid #e8d4c4;
+            padding-bottom: 0.75rem;
+            font-weight: 300;
         }
 
-        .introduction p {
-            font-size: 1.05em;
-            color: #555;
-            line-height: 1.8;
-        }
-
-        .facts-grid {
+        .candle-types {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 25px;
-            margin-top: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
         }
 
-        @media (min-width: 768px) {
-            .facts-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .fact-card {
-            background: #f8f9fa;
-            border-left: 5px solid #667eea;
-            padding: 25px;
+        .candle-card {
+            background: white;
+            padding: 2rem;
             border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .fact-card:hover {
+        .candle-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.1);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
         }
 
-        .fact-card h3 {
-            color: #667eea;
-            margin-bottom: 12px;
-            font-size: 1.3em;
+        .candle-card h3 {
+            color: #34495e;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
         }
 
-        .fact-card p {
+        .candle-card p {
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        .benefits {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .benefit-item {
+            background: white;
+            padding: 1.75rem;
+            border-radius: 8px;
+            border-left: 4px solid #e8d4c4;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        }
+
+        .benefit-item h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .benefit-item p {
             color: #666;
-            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .care-tips {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .care-tips ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .care-tips li {
+            padding: 0.75rem 0;
+            padding-left: 2rem;
+            position: relative;
+            color: #555;
+        }
+
+        .care-tips li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #e8d4c4;
+            font-weight: bold;
+            font-size: 1.2rem;
         }
 
         footer {
-            background: #f8f9fa;
-            padding: 20px 30px;
+            background: #2c3e50;
+            color: white;
             text-align: center;
-            border-top: 1px solid #e0e0e0;
-            color: #888;
-            font-size: 0.95em;
+            padding: 2rem 1rem;
+            margin-top: 4rem;
+            font-size: 0.9rem;
         }
 
-        @media (max-width: 600px) {
+        footer p {
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
             header h1 {
-                font-size: 1.8em;
+                font-size: 2rem;
             }
 
-            .content {
-                padding: 25px 20px;
+            section h2 {
+                font-size: 1.5rem;
             }
 
-            .introduction h2 {
-                font-size: 1.4em;
+            main {
+                padding: 1.5rem 1rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🐕 All About Dogs</h1>
-            <p>Man's Best Friend Through the Ages</p>
-        </header>
+    <header>
+        <h1>🕯 CANDLES</h1>
+        <p>Discover the warmth and ambiance of quality candles</p>
+    </header>
 
-        <div class="content">
-            <section class="introduction">
-                <h2>Welcome to the World of Dogs</h2>
-                <p>
-                    Dogs have been humanity's faithful companions for thousands of years. From ancient civilizations to modern times, 
-                    these remarkable animals have earned their place as one of the most beloved pets worldwide. With hundreds of breeds 
-                    and unique personalities, dogs continue to bring joy, loyalty, and unconditional love to millions of households.
-                </p>
-            </section>
-
-            <div class="facts-grid">
-                <div class="fact-card">
-                    <h3>🧠 Incredible Intelligence</h3>
-                    <p>
-                        Dogs are remarkably intelligent animals with the cognitive abilities of a 2-3 year old child. 
-                        They can learn up to 250 different words and understand complex commands. Some breeds, like Border Collies, 
-                        are among the smartest animals on Earth.
-                    </p>
+    <main>
+        <!-- Candle Types Section -->
+        <section>
+            <h2>Candle Types</h2>
+            <div class="candle-types">
+                <div class="candle-card">
+                    <h3>Paraffin Candles</h3>
+                    <p>Traditional and affordable, paraffin candles are made from petroleum by-products. They hold color and scent well, making them popular for decorative and aromatic purposes.</p>
                 </div>
-
-                <div class="fact-card">
-                    <h3>👃 Superhuman Sense of Smell</h3>
-                    <p>
-                        A dog's nose is 10,000 to 100,000 times more sensitive than humans. They have up to 300 million olfactory 
-                        receptors and can detect diseases, predict seizures, and find missing people. This amazing ability has made 
-                        them invaluable in search and rescue operations.
-                    </p>
+                <div class="candle-card">
+                    <h3>Soy Candles</h3>
+                    <p>Made from soybean oil, soy candles are eco-friendly and renewable. They burn longer and cleaner than paraffin, with a softer fragrance throw perfect for natural scents.</p>
                 </div>
-
-                <div class="fact-card">
-                    <h3>❤️ Unconditional Loyalty</h3>
-                    <p>
-                        Dogs form deep emotional bonds with their owners and families. They're known for their unwavering loyalty and 
-                        dedication. Studies show that dogs experience a surge in oxytocin (the "love hormone") when interacting with 
-                        their beloved humans.
-                    </p>
+                <div class="candle-card">
+                    <h3>Beeswax Candles</h3>
+                    <p>Premium and natural, beeswax candles burn the longest and brightest. They produce a natural honey scent and purify the air by releasing negative ions.</p>
                 </div>
-
-                <div class="fact-card">
-                    <h3>🏃 Built for Action</h3>
-                    <p>
-                        Dogs are incredibly athletic and energetic animals. Depending on the breed, they can run at speeds up to 45 mph 
-                        and jump up to 6 times their body length. Regular exercise is essential for their physical and mental well-being.
-                    </p>
-                </div>
-
-                <div class="fact-card">
-                    <h3>🌍 Diverse Breeds</h3>
-                    <p>
-                        There are over 340 recognized dog breeds worldwide, ranging from tiny Chihuahuas (2-6 pounds) to massive Great 
-                        Danes (100-200 pounds). Each breed was developed for specific purposes, from herding to hunting to companionship.
-                    </p>
-                </div>
-
-                <div class="fact-card">
-                    <h3>👨‍⚕️ Health Benefits</h3>
-                    <p>
-                        Dog owners experience numerous health benefits including lower blood pressure, reduced stress levels, and improved 
-                        cardiovascular health. The companionship of dogs has been shown to increase life expectancy and improve overall quality of life.
-                    </p>
+                <div class="candle-card">
+                    <h3>Gel Candles</h3>
+                    <p>Made from mineral oil and resin, gel candles are transparent and allow for creative decorating. They hold color vividly and are great for embedding decorative elements.</p>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <footer>
-            <p>&copy; 2026 All About Dogs. Created with 🐾 for dog lovers everywhere.</p>
-        </footer>
-    </div>
+        <!-- Benefits Section -->
+        <section>
+            <h2>Benefits of Candles</h2>
+            <div class="benefits">
+                <div class="benefit-item">
+                    <h3>Ambiance & Mood</h3>
+                    <p>Candles create a warm, inviting atmosphere that instantly enhances the mood of any room. Perfect for relaxation, meditation, or romantic evenings.</p>
+                </div>
+                <div class="benefit-item">
+                    <h3>Natural Fragrance</h3>
+                    <p>Scented candles release pleasant aromas that naturally freshen your space without harsh chemicals. Essential oil candles provide aromatherapy benefits.</p>
+                </div>
+                <div class="benefit-item">
+                    <h3>Energy Savings</h3>
+                    <p>Use candles to reduce reliance on electric lighting. They provide gentle, natural light that's perfect for creating comfort during power outages.</p>
+                </div>
+                <div class="benefit-item">
+                    <h3>Stress Relief</h3>
+                    <p>The soft glow and calming scents of candles help reduce stress and anxiety. Many people use them as part of their self-care and wellness routines.</p>
+                </div>
+                <div class="benefit-item">
+                    <h3>Home Décor</h3>
+                    <p>Candles add beauty and elegance to any space. Available in countless colors, shapes, and sizes, they complement any interior design style.</p>
+                </div>
+                <div class="benefit-item">
+                    <h3>Mindfulness</h3>
+                    <p>Watching a candle flame encourages mindfulness and presence. The flickering light naturally draws focus and promotes relaxation and contemplation.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Care Tips Section -->
+        <section>
+            <h2>Candle Care Tips</h2>
+            <div class="care-tips">
+                <ul>
+                    <li><strong>Trim the wick:</strong> Keep the wick trimmed to ¼ inch to prevent excessive smoking and ensure an even burn.</li>
+                    <li><strong>First burn matters:</strong> Allow the candle to burn long enough for the entire surface to melt on the first use to prevent tunneling.</li>
+                    <li><strong>Avoid drafts:</strong> Keep candles away from fans, open windows, and air conditioning to ensure even burning.</li>
+                    <li><strong>Use a candle warmer:</strong> Consider using a candle warmer instead of a flame for safer, longer-lasting candles.</li>
+                    <li><strong>Store properly:</strong> Keep candles in a cool, dry place away from direct sunlight to prevent discoloration and warping.</li>
+                    <li><strong>Never leave unattended:</strong> Always keep a burning candle in sight and never fall asleep with one lit.</li>
+                    <li><strong>Extinguish safely:</strong> Use a candle snuffer to extinguish candles gently, avoiding wax splatter.</li>
+                    <li><strong>Remove debris:</strong> Keep the top of candles free from dust and debris by gently wiping before lighting.</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Candles. All rights reserved. Crafted with care.</p>
+    </footer>
 </body>
 </html>
