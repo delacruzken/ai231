@@ -63,6 +63,23 @@ def test_overlap_steering_and_backchannel():
     assert oc.evaluate(speech_ms=400).action == "yield"
 
 
+def test_overlap_yield_commits_interrupt_text(monkeypatch):
+    """Steering barge must become the next turn — not wait for another utterance."""
+    monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
+    orch = ConversationOrchestrator(force_mock=True)
+    orch.set_state = MagicMock()
+    orch.cancel_active = MagicMock()
+    orch.commit_user_turn = MagicMock(return_value="turn-steer")
+    orch.overlap.begin()
+    orch.overlap.on_partial("No what I mean is world news")
+    # Force yield via steering phrase
+    orch.tick(enabled=True, state="overlap_paused")
+    orch.cancel_active.assert_called()
+    orch.commit_user_turn.assert_called_once_with(
+        "No what I mean is world news", speculative=True
+    )
+
+
 def test_ack_delay_and_suppress():
     ack = AckManager()
     ack.on_operation_started()
@@ -79,7 +96,7 @@ def test_asr_text_compatible_prefix_and_mismatch():
     assert not _asr_text_compatible("while sheds on", "should i consider freelancing")
 
 
-def test_silence_commit_marks_llm_request_speculative(monkeypatch):
+def test_silence_commit_marks_asr_final_then_speculative_llm(monkeypatch):
     monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
     orch = ConversationOrchestrator(force_mock=True)
     orch.set_state = MagicMock()
@@ -95,9 +112,14 @@ def test_silence_commit_marks_llm_request_speculative(monkeypatch):
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline and not any(s == "llm_request" for s, _ in marks):
             time.sleep(0.02)
-    req = next(((s, f) for s, f in marks if s == "llm_request"), None)
-    assert req is not None
-    assert req[1].get("speculative") is True
+    stages = [s for s, _ in marks]
+    assert "asr_final" in stages
+    assert "llm_request" in stages
+    assert stages.index("asr_final") < stages.index("llm_request")
+    final = next(f for s, f in marks if s == "asr_final")
+    assert final.get("text") == "Open the garage door please"
+    req = next(f for s, f in marks if s == "llm_request")
+    assert req.get("speculative") is True
     orch.cancel_active(reason="test_done")
 
 

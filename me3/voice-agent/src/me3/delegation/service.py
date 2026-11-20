@@ -78,6 +78,24 @@ class DelegationService:
             self._poll_thread.join(timeout=2.0)
         self.registry.close()
 
+    def reset_for_session(self) -> dict[str, Any]:
+        """Cancel any active job and wipe the job list (session OFF→ON)."""
+        cancelled = 0
+        try:
+            active = self.registry.active_job()
+            if active:
+                self.cancel(active["id"])
+                cancelled = 1
+        except Exception:
+            logger.exception("reset_for_session cancel failed")
+        cleared = self.registry.clear_all()
+        self._session_by_job.clear()
+        return {
+            "provider": self.provider,
+            "jobs_cancelled": cancelled,
+            "jobs_cleared": cleared,
+        }
+
     def health(self) -> dict[str, Any]:
         if self.provider == "opencode":
             h = self.opencode.health()
@@ -120,13 +138,27 @@ class DelegationService:
                 instructions=kwargs.get("instructions"),
                 idempotency_key=meta.idempotency_key,
                 model=kwargs.get("model"),
+                publish_when_done=bool(
+                    kwargs.get("publish_when_done")
+                    or kwargs.get("publish")
+                    or kwargs.get("auto_publish")
+                ),
             )
         if tool == "jobs.status":
             job_id = kwargs.get("job_id") or kwargs.get("id")
             if job_id:
-                job = self.registry.get(job_id)
+                job = self.registry.resolve(job_id)
                 if not job:
-                    raise RuntimeError(f"job not found: {job_id}")
+                    # Prefix miss — still return active/recent so the model doesn't invent "no job".
+                    active = self.registry.active_job()
+                    recent = self.registry.list_jobs(limit=10)
+                    return {
+                        "job": self._localize_job(active) if active else None,
+                        "jobs": [self._localize_job(j) for j in recent],
+                        "summary": _jobs_summary(recent, active=active),
+                        "provider": self.provider,
+                        "note": f"no job matched id/prefix {job_id!r}; showing active/recent instead",
+                    }
                 localized = self._localize_job(job)
                 return {
                     "job": localized,
@@ -146,6 +178,10 @@ class DelegationService:
             job_id = kwargs.get("job_id") or kwargs.get("id")
             if not job_id:
                 raise ValueError("job_id is required")
+            resolved = self.registry.resolve(job_id)
+            if not resolved:
+                raise RuntimeError(f"job not found: {job_id}")
+            job_id = resolved["id"]
             response = kwargs.get("response") or kwargs.get("text") or kwargs.get("answer") or ""
             approve = bool(kwargs.get("approve", True))
             if kwargs.get("status") == "needs_approval" or kwargs.get("request_approval"):
@@ -161,17 +197,21 @@ class DelegationService:
             job_id = kwargs.get("job_id") or kwargs.get("id")
             if not job_id:
                 raise ValueError("job_id is required")
+            resolved = self.registry.resolve(job_id)
+            if not resolved:
+                raise RuntimeError(f"job not found: {job_id}")
+            job_id = resolved["id"]
             return {"cancelled": self.cancel(job_id), "job": self.registry.get(job_id)}
         if tool == "jobs.result":
             job_id = kwargs.get("job_id") or kwargs.get("id")
             if not job_id:
                 raise ValueError("job_id is required")
-            job = self.registry.get(job_id)
+            job = self.registry.resolve(job_id)
             if not job:
                 raise RuntimeError(f"job not found: {job_id}")
             return {
                 "job": self._localize_job(job),
-                "revisions": self.registry.revisions(job_id),
+                "revisions": self.registry.revisions(job["id"]),
                 "provider": self.provider,
             }
         raise ValueError(f"unsupported tool: {tool}")
@@ -192,6 +232,7 @@ class DelegationService:
         instructions: str | None = None,
         idempotency_key: str | None = None,
         model: str | None = None,
+        publish_when_done: bool = False,
     ) -> dict[str, Any]:
         spec = (specification or "").strip()
         if not spec:
@@ -201,6 +242,10 @@ class DelegationService:
             if existing:
                 return {"job": existing, "idempotent_replay": True, "provider": self.provider}
 
+        budget: dict[str, Any] = {}
+        if publish_when_done:
+            budget["publish_when_done"] = True
+
         job = self.registry.create(
             specification=spec,
             instructions=instructions,
@@ -208,6 +253,7 @@ class DelegationService:
             model=model,
             harness=self.provider,
             workspace_path=str(self.workspaces_dir),
+            budget=budget or None,
         )
         self._emit({"type": "job_update", "job": job})
         if self.provider == "mock":
@@ -267,7 +313,9 @@ class DelegationService:
                 f"ME3 delegated job {job['id']}.\n"
                 f"Specification:\n{job['specification']}\n"
                 f"Instructions:\n{job.get('instructions') or 'Complete the request in the workspace.'}\n"
-                f"Write deliverables under this workspace directory: {ws}\n"
+                f"CRITICAL: Write all deliverables under this exact directory only:\n{ws}\n"
+                "You MUST create index.html in that directory (plus CSS/JS as needed). "
+                "Do not finish until index.html exists on disk in that folder. "
                 "When finished, reply with a short outcome summary and the exact token "
                 "ME3_JOB_DONE on its own line. Do not publish privately."
             )
@@ -356,23 +404,27 @@ class DelegationService:
                 done_phrase = "completed successfully" in text.lower()
                 session_done = outcome in SUCCESS_OUTCOMES
                 age_s = _age_seconds(active.get("updated_at") or active.get("created_at"))
+                # Never mark complete without a real publishable page on disk.
+                has_page = "index.html" in files
 
-                if session_done or done_token or done_phrase or (files and (session_done or age_s >= 90)):
-                    reason = (
-                        f"opencode outcome={outcome or 'n/a'}; "
-                        f"workspace_files={', '.join(files) if files else 'none'}"
-                    )
-                    if text:
-                        reason = (text[-400:] + " | " + reason).strip(" |")
+                if has_page and (session_done or done_token or done_phrase or age_s >= 90):
+                    reason = _completion_outcome(text, files)
                     self._mark_completed(
                         active["id"],
                         outcome=reason,
-                        artifacts=[{"path": str(Path(active.get("workspace_path") or self.workspaces_dir / active["id"]) / f)} for f in files],
+                        artifacts=[
+                            {
+                                "path": str(
+                                    Path(active.get("workspace_path") or self.workspaces_dir / active["id"]) / f
+                                )
+                            }
+                            for f in files
+                        ],
                     )
                     continue
 
                 if age_s >= STUCK_SECONDS:
-                    if files:
+                    if has_page:
                         self._mark_completed(
                             active["id"],
                             outcome=(
@@ -392,10 +444,13 @@ class DelegationService:
                         self.registry.update(
                             active["id"],
                             status="failed",
-                            outcome=f"Timed out after {int(age_s // 60)} minutes with no workspace deliverables.",
+                            outcome=(
+                                f"Timed out after {int(age_s // 60)} minutes with no index.html in workspace "
+                                f"(chat signals ignored without deliverables)."
+                            ),
                             clear_pending=True,
                         )
-                        self.registry.add_revision(active["id"], "failed: stuck timeout")
+                        self.registry.add_revision(active["id"], "failed: stuck timeout no index.html")
                         self._emit(
                             {"type": "job_update", "job": self._localize_job(self.registry.get(active["id"]))}
                         )
@@ -463,3 +518,10 @@ def json_dump_messages(msgs: list[dict[str, Any]]) -> str:
         if info.get("content"):
             parts.append(str(info["content"]))
     return "\n".join(parts)
+
+
+def _completion_outcome(text: str, files: list[str]) -> str:
+    """Short status only — never store OpenCode chat / tool dumps as outcome."""
+    del text  # used only for done-token detection upstream
+    file_bit = ", ".join(files[:8]) if files else "index.html"
+    return f"Build finished. Files: {file_bit}."

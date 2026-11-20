@@ -51,6 +51,25 @@ class JobRegistry:
             row = self.conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
             return self._job_row(row) if row else None
 
+    def resolve(self, job_id: str | None) -> dict[str, Any] | None:
+        """Exact id, else unique prefix (e.g. first 8 hex chars spoken by the LLM)."""
+        key = (job_id or "").strip()
+        if not key:
+            return None
+        exact = self.get(key)
+        if exact:
+            return exact
+        if len(key) < 4:
+            return None
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT * FROM jobs WHERE id LIKE ? ORDER BY created_at DESC LIMIT 5",
+                (f"{key}%",),
+            ).fetchall()
+        if len(rows) == 1:
+            return self._job_row(rows[0])
+        return None
+
     def get_by_idempotency(self, key: str | None) -> dict[str, Any] | None:
         if not key:
             return None
@@ -230,6 +249,15 @@ class JobRegistry:
                 self.conn.execute("DELETE FROM jobs WHERE id = ?", (jid,))
             self.conn.commit()
             return len(drop)
+
+    def clear_all(self) -> int:
+        """Delete every job and related rows (session restart)."""
+        with self._lock:
+            self.conn.execute("DELETE FROM job_revisions")
+            self.conn.execute("DELETE FROM artifacts")
+            cur = self.conn.execute("DELETE FROM jobs")
+            self.conn.commit()
+            return int(cur.rowcount or 0)
 
     def _job_row(self, row: sqlite3.Row) -> dict[str, Any]:
         return {

@@ -50,6 +50,8 @@ session:
   barge_in_confirm_ms: 320
   barge_in_hold_ms: 320
   barge_in_hangover_ms: 0
+  # Quiet grace after soft-pause before abandoning (Pi/M1A level dips)
+  barge_in_abandon_ms: 500
   barge_in_energy_ratio: 1.8
   barge_in_energy_floor: 0.012
   ack_delay_ms: 700

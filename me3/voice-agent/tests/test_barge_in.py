@@ -117,3 +117,29 @@ def test_sub_window_chunks_accumulate_then_confirm():
     fired = _feed(ctrl, speech, 8)
     assert fired is True
     assert ctrl._barge_keep_asr is True
+
+
+def test_soft_pause_survives_brief_quiet_then_confirms():
+    """Pi/M1A often dips after TTS mute; must not abandon before confirm."""
+    ctrl = _ctrl(
+        barge_in_pause_ms=64,
+        barge_in_confirm_ms=128,
+        barge_in_abandon_ms=400,
+        barge_in_energy_floor=0.012,
+        barge_in_energy_ratio=1.8,
+    )
+    speech = (np.random.randn(WINDOW).astype(np.float32) * 0.04).astype(np.float32)
+    quiet = (np.random.randn(WINDOW).astype(np.float32) * 0.0004).astype(np.float32)
+
+    assert ctrl._watch_barge_in(speech, SessionState.SPEAKING) is False
+    assert ctrl._watch_barge_in(speech, SessionState.SPEAKING) is False
+    assert ctrl._barge_soft_paused is True
+
+    # Brief dip — should stay soft-paused, not abandon
+    assert ctrl._watch_barge_in(quiet, SessionState.SPEAKING) is False
+    assert ctrl._barge_soft_paused is True
+    assert ctrl._barge_asr_live is True
+    ctrl.conversation.cancel_active.assert_not_called()
+
+    assert _feed(ctrl, speech, 4) is True
+    ctrl.conversation.cancel_active.assert_called()

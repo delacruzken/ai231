@@ -1,9 +1,12 @@
 # ME3 voice-agent
 
 English-first, interruptible full-duplex voice agent for Raspberry Pi 5.  
-Architecture: [`../ME3_Architecture_and_Development_Plan.md`](../ME3_Architecture_and_Development_Plan.md).
+Architecture: [`../ME3_Architecture_and_Development_Plan.md`](../ME3_Architecture_and_Development_Plan.md).  
+**Live topology / deck diagram:** [`docs/SYSTEM_TOPOLOGY.md`](docs/SYSTEM_TOPOLOGY.md) · prompt excerpt [`docs/PROMPT_v1.md`](docs/PROMPT_v1.md).
 
-**Phase 8 status:** fd-benchmark direct-feed integration (Pipecat transport shuttle → ME3 SessionController, stage marks, trial reset). Publication remains Phase 7.
+**Harness:** custom ME3 session runtime (`SessionController`). Pipecat 1.15 is the **fdbench audio transport adapter**, not the full live speech pipeline.  
+**Speech:** local Kroko Zipformer + Piper (in-process on `--serve`; same engines also available as `me3.mcp.asr` / `tts` servers).  
+**Phase 8:** fd-benchmark direct-feed + stage marks; laptop course bank WER 5.7% (`docs/benchmarks/2026-11-20_09-04-05_RESULTS.md`). Pi Results card still pending.
 
 ## Keys
 
