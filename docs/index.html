@@ -1,21 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Claudette Chiong</title>
-  <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐕 Golden Retrievers - The Best Friends!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Trebuchet MS', cursive, sans-serif;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            margin-bottom: 40px;
+            animation: bounce 2s infinite;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+        }
+
+        .tagline {
+            font-size: 1.3em;
+            font-style: italic;
+            color: #fffacd;
+        }
+
+        .hero-image {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 5px solid #fff;
+        }
+
+        .content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #D4A017;
+            font-size: 2em;
+            margin-bottom: 20px;
+            border-bottom: 3px dashed #FFD700;
+            padding-bottom: 10px;
+        }
+
+        .facts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .fact-card {
+            background: linear-gradient(135deg, #FFE4B5 0%, #FFDEAD 100%);
+            border: 3px solid #FFD700;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .fact-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .fact-emoji {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .fact-card h3 {
+            color: #8B4513;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .fact-card p {
+            color: #333;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .gallery-item {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            aspect-ratio: 1;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            border: 3px solid #FFD700;
+            transition: transform 0.3s ease;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+
+        .traits {
+            background: linear-gradient(135deg, #FFF8DC 0%, #FFFACD 100%);
+            border-left: 5px solid #FFD700;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .traits h3 {
+            color: #8B4513;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .trait-list {
+            list-style: none;
+        }
+
+        .trait-list li {
+            padding: 8px 0;
+            color: #333;
+            font-size: 1.05em;
+        }
+
+        .trait-list li:before {
+            content: "🐕 ";
+            margin-right: 10px;
+            font-size: 1.1em;
+        }
+
+        footer {
+            text-align: center;
+            color: #fff;
+            padding: 20px;
+            font-size: 1.1em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .paw-prints {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 2em;
+            margin: 30px 0;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
 </head>
 <body>
-  <main>
-    <p class="eyebrow">ME3 mock site</p>
-    <h1>Claudette Chiong</h1>
-    <p class="lede">Placeholder landing page generated because OpenCode was offline. Restart <code>opencode serve</code> for a fuller build.</p>
-    <section class="card">
-      <h2>Job specification</h2>
-      <p>Create a simple bio page for Claudette Chiong, a multimedia specialist and senior research associate at TVUP. Include her name, role, and brief background about her work on the UP System Mental Health and Well-being Conference 2023 as a camera person. Design should be clean and professional with a single HTML page.</p>
-    </section>
-    <footer>Built by ME3 MockWorker · publishable to GitHub Pages</footer>
-  </main>
+    <div class="container">
+        <header>
+            <h1>🐕 Golden Retrievers 🐕</h1>
+            <p class="tagline">The friendliest pups in the whole world!</p>
+        </header>
+
+        <div style="text-align: center; margin-bottom: 40px;">
+            <div class="paw-prints">
+                🐾 🐾 🐾
+            </div>
+        </div>
+
+        <div class="content">
+            <h2>✨ Awesome Facts About Golden Retrievers</h2>
+
+            <div class="facts">
+                <div class="fact-card">
+                    <div class="fact-emoji">🏅</div>
+                    <h3>Super Smart!</h3>
+                    <p>Golden Retrievers are the 4th most intelligent dog breed. They're easy to train and love learning new tricks!</p>
+                </div>
+
+                <div class="fact-card">
+                    <div class="fact-emoji">❤️</div>
+                    <h3>Big Hearts</h3>
+                    <p>They're one of the most loyal and loving breeds. Golden Retrievers make incredible family pets and best friends!</p>
+                </div>
+
+                <div class="fact-card">
+                    <div class="fact-emoji">🏊</div>
+                    <h3>Water Lovers</h3>
+                    <p>Golden Retrievers LOVE water! Their water-resistant coat and webbed paws make them amazing swimmers.</p>
+                </div>
+
+                <div class="fact-card">
+                    <div class="fact-emoji">🌟</div>
+                    <h3>Naturally Friendly</h3>
+                    <p>They're one of the most popular breeds worldwide. Golden Retrievers rarely meet a stranger they don't like!</p>
+                </div>
+
+                <div class="fact-card">
+                    <div class="fact-emoji">🦴</div>
+                    <h3>Lifetime: 10-12 Years</h3>
+                    <p>Golden Retrievers live for about 10 to 12 years. That's a whole lot of tail wags and cuddles!</p>
+                </div>
+
+                <div class="fact-card">
+                    <div class="fact-emoji">🌍</div>
+                    <h3>Originated in Scotland</h3>
+                    <p>These beautiful pups were bred in Scotland during the 1800s. They were originally bred for hunting and retrieving!</p>
+                </div>
+            </div>
+
+            <div class="traits">
+                <h3>🌈 Why We Love Golden Retrievers</h3>
+                <ul class="trait-list">
+                    <li>Incredibly loyal and devoted to their families</li>
+                    <li>Playful, fun-loving, and always up for an adventure</li>
+                    <li>Gentle and patient with children</li>
+                    <li>Super intelligent and eager to please</li>
+                    <li>Perfect therapy and service dogs</li>
+                    <li>Amazing athletes and outdoor enthusiasts</li>
+                    <li>That gorgeous golden coat!</li>
+                    <li>Their happy, cheerful personalities</li>
+                </ul>
+            </div>
+
+            <h2>🎨 Golden Retriever Gallery</h2>
+            <div class="gallery">
+                <div class="gallery-item">🐶</div>
+                <div class="gallery-item">🏐</div>
+                <div class="gallery-item">🏃</div>
+                <div class="gallery-item">🌳</div>
+                <div class="gallery-item">🛼</div>
+                <div class="gallery-item">😊</div>
+            </div>
+        </div>
+
+        <div class="paw-prints">
+            🐾 🐾 🐾
+        </div>
+
+        <footer>
+            <p>🐕 Made with love for golden retrievers everywhere! 🐕</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">If you have a golden retriever, give them extra treats and belly rubs from us! ❤️</p>
+        </footer>
+    </div>
 </body>
 </html>
