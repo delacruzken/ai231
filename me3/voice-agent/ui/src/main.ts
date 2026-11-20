@@ -9,6 +9,8 @@ type TranscriptRow = {
   partial?: boolean;
   ts?: string;
   turn_id?: string;
+  /** Idle alerts (job done / timer) — display as their own latest exchange. */
+  kind?: string;
 };
 
 type TypewriterState = {
@@ -29,6 +31,12 @@ type SessionPayload = {
 };
 
 const TOKEN_KEY = "me3_ui_token";
+const ACTIVE_JOB_STATUSES = new Set([
+  "queued",
+  "running",
+  "needs_input",
+  "needs_approval",
+]);
 
 function readStoredToken(): string {
   return localStorage.getItem(TOKEN_KEY) || "";
@@ -94,8 +102,12 @@ type JobRow = {
   id: string;
   status: string;
   specification?: string;
+  instructions?: string | null;
   pending_user_request?: string | null;
   outcome?: string | null;
+  updated_at?: string | null;
+  updated_at_local?: string | null;
+  created_at?: string | null;
 };
 let jobs: JobRow[] = [];
 let jobsProvider = "";
@@ -114,6 +126,231 @@ const TYPEWRITER_CHARS = 2;
 /** Brief "Copied" label after Copy log (survives re-renders). */
 let copyLogFlashUntil = 0;
 let copyLogFlashTimer: number | null = null;
+
+/** Job reply drafts survive full-DOM re-renders from WS/poll. */
+let jobReplyDraft: Record<string, string> = {};
+let jobBusyId: string | null = null;
+let jobFormError = "";
+let jobCancelConfirmId: string | null = null;
+let jobPollTimer: number | null = null;
+let uiClockTimer: number | null = null;
+
+type FocusSnap = { id: string; start: number; end: number } | null;
+
+function snapFocus(): FocusSnap {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
+  if (!el.id) return null;
+  return { id: el.id, start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 };
+}
+
+function restoreFocus(snap: FocusSnap) {
+  if (!snap) return;
+  const el = document.getElementById(snap.id);
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+  el.focus();
+  try {
+    el.setSelectionRange(snap.start, snap.end);
+  } catch {
+    /* ignore */
+  }
+}
+
+function authHeaders(json = false): HeadersInit {
+  const h: Record<string, string> = { Authorization: `Bearer ${getToken()}` };
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+
+async function readApiError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data?.detail === "string") return data.detail;
+    if (data?.detail?.message) return String(data.detail.message);
+    if (data?.error?.message) return String(data.error.message);
+  } catch {
+    /* ignore */
+  }
+  return `Request failed (${res.status})`;
+}
+
+function mergeJob(job: JobRow) {
+  if (!job?.id) return;
+  const idx = jobs.findIndex((j) => j.id === job.id);
+  if (idx >= 0) {
+    jobs = [...jobs.slice(0, idx), { ...jobs[idx], ...job }, ...jobs.slice(idx + 1)];
+  } else {
+    jobs = [job, ...jobs].slice(0, 20);
+  }
+  ensureJobPoll();
+}
+
+function hasActiveJobs(): boolean {
+  return jobs.some((j) => ACTIVE_JOB_STATUSES.has(j.status));
+}
+
+function ensureJobPoll() {
+  if (hasActiveJobs()) {
+    if (jobPollTimer != null) return;
+    jobPollTimer = window.setInterval(() => {
+      void refreshTasks();
+      if (!hasActiveJobs() && jobPollTimer != null) {
+        window.clearInterval(jobPollTimer);
+        jobPollTimer = null;
+      }
+    }, 4000);
+  } else if (jobPollTimer != null) {
+    window.clearInterval(jobPollTimer);
+    jobPollTimer = null;
+  }
+}
+
+function flashJob(jobId: string | undefined | null) {
+  if (!jobId) return;
+  highlightJobId = jobId;
+  if (highlightTimer != null) window.clearTimeout(highlightTimer);
+  highlightTimer = window.setTimeout(() => {
+    highlightJobId = null;
+    highlightTimer = null;
+    render();
+  }, 8000);
+}
+
+function jobTitle(j: JobRow): string {
+  const line = (j.specification || j.id || "job").trim().split("\n")[0];
+  if (!line) return j.id.slice(0, 8);
+  if (line.length <= 160) return line;
+  const cut = line.slice(0, 160);
+  const sp = cut.lastIndexOf(" ");
+  return `${sp > 100 ? cut.slice(0, sp) : cut}…`;
+}
+
+/**
+ * Grey subtext under the job title.
+ * Completed jobs: hide OpenCode chat dumps; only show a short "Build finished…" line.
+ * Failed jobs: show a cleaned error (still hide UUID/`[{'type'` dumps).
+ */
+function jobOutcomeDisplay(outcome?: string | null, status?: string): string {
+  const raw = String(outcome || "").trim();
+  if (!raw) return "";
+  // Raw message-part / JSON dumps from OpenCode — never show in the card.
+  if (/^\s*[\[{]/.test(raw) || raw.includes("{'type'") || raw.includes('"type": "text"')) {
+    return status === "completed" ? "" : "Build failed (see logs).";
+  }
+  const lines = raw.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  const uuidLine = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i;
+  const uuidHits = lines.filter((l) => uuidLine.test(l) || (/^\d+$/.test(l) && l.length <= 4)).length;
+  if (uuidHits >= 2 && uuidHits >= Math.ceil(lines.length / 2)) {
+    return status === "completed" ? "" : "Build failed (see logs).";
+  }
+  const cleaned = lines
+    .filter((l) => !uuidLine.test(l) && !(/^\d+$/.test(l) && l.length <= 4))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleaned.length < 12) return "";
+  if (status === "completed" && !/^build finished/i.test(cleaned)) {
+    // Older jobs stored chat tails as outcome — don't surface them.
+    return "";
+  }
+  return cleaned.length > 160 ? `${cleaned.slice(0, 160)}…` : cleaned;
+}
+
+function statusLabel(status: string): string {
+  if (status === "completed") return "done";
+  if (status === "needs_input") return "needs input";
+  if (status === "needs_approval") return "needs approval";
+  return status.replace(/_/g, " ");
+}
+
+/** Count-up elapsed from an ISO timestamp, e.g. "1:23" or "12s". */
+function formatElapsed(iso?: string | null): string {
+  const d = parseWhen(iso);
+  if (!d) return "";
+  const sec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return `${m}:${String(s).padStart(2, "0")}`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+function formatDurationBetween(startIso?: string | null, endIso?: string | null): string {
+  const a = parseWhen(startIso);
+  const b = parseWhen(endIso);
+  if (!a || !b) return "";
+  const sec = Math.max(0, Math.floor((b.getTime() - a.getTime()) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function jobTimeLabel(j: JobRow): string {
+  const start = j.created_at || j.updated_at || j.updated_at_local;
+  if (j.status === "queued" || j.status === "running") {
+    const el = formatElapsed(start);
+    return el ? `↑ ${el}` : "live";
+  }
+  if (j.status === "needs_input" || j.status === "needs_approval") {
+    return "waiting on you";
+  }
+  if (j.status === "completed") {
+    const took = formatDurationBetween(j.created_at, j.updated_at || j.updated_at_local);
+    return took ? `took ${took}` : "done";
+  }
+  if (j.status === "failed") {
+    return "failed";
+  }
+  return formatRelative(j.updated_at_local || j.updated_at || j.created_at);
+}
+
+function parseWhen(iso?: string | null): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Relative age, e.g. "2m ago". */
+function formatRelative(iso?: string | null): string {
+  const d = parseWhen(iso);
+  if (!d) return "";
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 48) return `${hr}h ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/** Countdown or overdue for timer deadlines. */
+function formatCountdown(deadlineAt: string): string {
+  const d = parseWhen(deadlineAt);
+  if (!d) return deadlineAt;
+  const sec = Math.round((d.getTime() - Date.now()) / 1000);
+  if (sec <= 0) {
+    const late = Math.abs(sec);
+    if (late < 60) return "due now";
+    if (late < 3600) return `${Math.round(late / 60)}m overdue`;
+    return `${Math.round(late / 3600)}h overdue`;
+  }
+  if (sec < 60) return `in ${sec}s`;
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s ? `in ${m}m ${s}s` : `in ${m}m`;
+  }
+  if (sec < 86400) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.round((sec % 3600) / 60);
+    return m ? `in ${h}h ${m}m` : `in ${h}h`;
+  }
+  const days = Math.round(sec / 86400);
+  return `in ${days}d`;
+}
 
 async function refreshTasks() {
   const token = getToken();
@@ -137,6 +374,8 @@ async function refreshTasks() {
       jobsProvider = data.provider || "";
       jobs = data.jobs || [];
     }
+    ensureJobPoll();
+    if (timers.length || hasActiveJobs()) ensureUiClock();
     render();
   } catch {
     /* ignore */
@@ -232,15 +471,7 @@ function normUtt(text?: string): string {
 function pushToast(text: string, tone: Toast["tone"] = "info", jobId?: string) {
   const id = ++toastSeq;
   toasts = [...toasts.slice(-4), { id, text, tone, jobId }];
-  if (jobId) {
-    highlightJobId = jobId;
-    if (highlightTimer != null) window.clearTimeout(highlightTimer);
-    highlightTimer = window.setTimeout(() => {
-      highlightJobId = null;
-      highlightTimer = null;
-      render();
-    }, 8000);
-  }
+  if (jobId) flashJob(jobId);
   render();
   window.setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);
@@ -258,7 +489,9 @@ function groupExchanges(rows: TranscriptRow[]): TranscriptRow[][] {
   let cur: TranscriptRow[] = [];
   for (const r of rows) {
     const role = r.role || "user";
-    if (role === "user" && cur.length) {
+    const isNotice = (r.kind || "") === "notification" || (r.kind || "") === "clarify";
+    // Notifications are standalone latest items — do not tuck them into the prior Q&A.
+    if (((role === "user" && !isNotice) || isNotice) && cur.length) {
       groups.push(cur);
       cur = [];
     }
@@ -417,7 +650,127 @@ function pendingLabel(): string {
   return "Working…";
 }
 
+function renderJobsPanel(): string {
+  const cards =
+    jobs.length === 0
+      ? `<div class="empty">No jobs yet — ask Kaki to start one.</div>`
+      : jobs
+          .slice(0, 8)
+          .map((j) => {
+            const waiting = j.status === "needs_input" || j.status === "needs_approval";
+            const cancellable = ACTIVE_JOB_STATUSES.has(j.status);
+            const flash = highlightJobId === j.id ? " flash" : "";
+            const cardBusy = jobBusyId === j.id;
+            const confirming = jobCancelConfirmId === j.id;
+            const when = jobTimeLabel(j);
+            const live =
+              j.status === "queued" || j.status === "running"
+                ? `<span class="job-live" aria-hidden="true"></span>`
+                : "";
+            const replyVal = jobReplyDraft[j.id] ?? "";
+            return `<div class="job-card status-${escapeAttr(j.status)}${flash}" data-job-id="${escapeAttr(
+              j.id
+            )}">
+              <div class="job-card-top">
+                <span class="status-pill status-${escapeAttr(j.status)}">${live}${escapeHtml(
+                  statusLabel(j.status)
+                )}</span>
+                ${when ? `<span class="job-when">${escapeHtml(when)}</span>` : ""}
+              </div>
+              <div class="job-title">${escapeHtml(jobTitle(j))}</div>
+              ${
+                j.pending_user_request
+                  ? `<div class="job-ask">${escapeHtml(j.pending_user_request)}</div>`
+                  : ""
+              }
+              ${
+                (() => {
+                  if (!(j.status === "completed" || j.status === "failed")) return "";
+                  const shown = jobOutcomeDisplay(j.outcome, j.status);
+                  return shown ? `<div class="job-outcome">${escapeHtml(shown)}</div>` : "";
+                })()
+              }
+              ${
+                waiting
+                  ? `<div class="job-reply">
+                      <textarea
+                        id="job-reply-${escapeAttr(j.id)}"
+                        data-job-reply="${escapeAttr(j.id)}"
+                        rows="2"
+                        placeholder="${
+                          j.status === "needs_approval"
+                            ? "Optional note, or leave blank to approve"
+                            : "Your reply…"
+                        }"
+                        ${cardBusy ? "disabled" : ""}
+                      >${escapeHtml(replyVal)}</textarea>
+                      <div class="job-actions">
+                        <button type="button" class="btn-primary" data-job-reply-send="${escapeAttr(
+                          j.id
+                        )}" ${cardBusy ? "disabled" : ""}>${
+                          cardBusy ? "Sending…" : "Reply"
+                        }</button>
+                        <button type="button" data-job-approve="${escapeAttr(j.id)}" ${
+                          cardBusy ? "disabled" : ""
+                        }>Approve</button>
+                      </div>
+                    </div>`
+                  : ""
+              }
+              ${
+                cancellable
+                  ? `<div class="job-actions job-actions-secondary">
+                      ${
+                        confirming
+                          ? `<span class="job-confirm-label">Cancel this job?</span>
+                             <button type="button" class="btn-danger" data-job-cancel-yes="${escapeAttr(
+                               j.id
+                             )}" ${cardBusy ? "disabled" : ""}>${
+                               cardBusy ? "Cancelling…" : "Yes, cancel"
+                             }</button>
+                             <button type="button" data-job-cancel-no="${escapeAttr(
+                               j.id
+                             )}" ${cardBusy ? "disabled" : ""}>Keep</button>`
+                          : `<button type="button" data-job-cancel="${escapeAttr(j.id)}" ${
+                              cardBusy ? "disabled" : ""
+                            }>Cancel</button>`
+                      }
+                    </div>`
+                  : ""
+              }
+            </div>`;
+          })
+          .join("");
+
+  const active = jobs.find((j) => ACTIVE_JOB_STATUSES.has(j.status));
+  const banner = active
+    ? `<div class="jobs-live-banner status-${escapeAttr(active.status)}" aria-live="polite">
+         <span class="job-live" aria-hidden="true"></span>
+         <strong>${escapeHtml(statusLabel(active.status))}</strong>
+         <span>${escapeHtml(jobTimeLabel(active))}</span>
+         <span class="jobs-live-title">${escapeHtml(jobTitle(active))}</span>
+       </div>`
+    : jobs.some((j) => j.status === "completed")
+      ? `<div class="jobs-live-banner status-completed" aria-live="polite">
+           <strong>done</strong>
+           <span>latest build finished</span>
+         </div>`
+      : "";
+
+  return `<div class="side-panel jobs-panel">
+    <h2>Jobs <span class="who">${escapeHtml(jobsProvider || "—")}</span></h2>
+    ${banner}
+    ${
+      jobFormError
+        ? `<div class="form-error" role="alert">${escapeHtml(jobFormError)}</div>`
+        : ""
+    }
+    <div class="job-list">${cards}</div>
+  </div>`;
+}
+
 function render() {
+  const focus = snapFocus();
   const badges = Object.entries(session.readiness || {})
     .map(([k, v]) => `<span class="badge ${v}">${k}: ${v}</span>`)
     .join("");
@@ -426,12 +779,13 @@ function render() {
     timers.length === 0
       ? `<div class="empty">No active timers</div>`
       : timers
-          .map(
-            (t) =>
-              `<div class="task-row"><span class="who">timer</span> ${escapeHtml(
-                t.label || t.id.slice(0, 8)
-              )} · ${escapeHtml(t.deadline_at)}</div>`
-          )
+          .map((t) => {
+            const label = t.label || t.id.slice(0, 8);
+            const cd = formatCountdown(t.deadline_at);
+            return `<div class="task-row"><span class="who">timer</span> ${escapeHtml(
+              label
+            )} · <span class="timer-countdown">${escapeHtml(cd)}</span></div>`;
+          })
           .join("");
   const noteLines =
     notes.length === 0
@@ -496,8 +850,7 @@ function render() {
   app.innerHTML = `
     <header class="top">
       <div>
-        <h1 class="brand">ME3</h1>
-        <p class="tagline">Voice session · tools · jobs</p>
+        <h1 class="brand">Kaki</h1>
       </div>
       <p class="conn ${connected ? "" : "lost"}" id="conn">
         ${connected ? "Connected" : "Connecting…"}
@@ -551,52 +904,7 @@ function render() {
           <h2>Notes</h2>
           ${noteLines}
         </div>
-        <div class="side-panel jobs-panel">
-          <h2>Jobs <span class="who">${escapeHtml(jobsProvider || "—")}</span></h2>
-          ${
-            jobs.length === 0
-              ? `<div class="empty">No jobs yet</div>`
-              : jobs
-                  .slice(0, 6)
-                  .map((j) => {
-                    const waiting = j.status === "needs_input" || j.status === "needs_approval";
-                    const flash = highlightJobId === j.id ? " flash" : "";
-                    return `<div class="job-card status-${escapeAttr(j.status)}${flash}">
-                <div><span class="who">${escapeHtml(j.status)}</span> ${escapeHtml(
-                      (j.specification || j.id).slice(0, 80)
-                    )}</div>
-                ${
-                  j.pending_user_request
-                    ? `<div class="job-ask">${escapeHtml(j.pending_user_request)}</div>`
-                    : ""
-                }
-                ${
-                  j.outcome
-                    ? `<div class="empty">${escapeHtml(String(j.outcome).slice(0, 120))}</div>`
-                    : ""
-                }
-                <div class="job-actions">
-                  ${
-                    waiting
-                      ? `<button type="button" data-job-approve="${escapeAttr(
-                          j.id
-                        )}">Approve / reply</button>`
-                      : ""
-                  }
-                  ${
-                    j.status === "queued" ||
-                    j.status === "running" ||
-                    j.status === "needs_input" ||
-                    j.status === "needs_approval"
-                      ? `<button type="button" data-job-cancel="${escapeAttr(j.id)}">Cancel</button>`
-                      : ""
-                  }
-                </div>
-              </div>`;
-                  })
-                  .join("")
-          }
-        </div>
+        ${renderJobsPanel()}
       </aside>
 
       <main class="col col-conversation">
@@ -625,6 +933,12 @@ function render() {
     </div>
   `;
 
+  bindUiHandlers();
+  restoreFocus(focus);
+  scrollTranscriptToLatest();
+}
+
+function bindUiHandlers() {
   document.querySelector("#save-token")?.addEventListener("click", () => {
     const v = (document.querySelector("#token") as HTMLInputElement).value.trim();
     if (v) {
@@ -647,14 +961,10 @@ function render() {
     if (!text) return;
     awaitingReply = true;
     render();
-    const token = getToken();
     try {
       await fetch("/api/say", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders(true),
         body: JSON.stringify({ text }),
       });
     } catch {
@@ -682,37 +992,115 @@ function render() {
       pushToast("Conversation log copied", "ok");
     });
   });
-  document.querySelectorAll("[data-job-approve]").forEach((el) => {
-    el.addEventListener("click", async () => {
-      const id = (el as HTMLElement).dataset.jobApprove;
+
+  document.querySelectorAll("[data-job-reply]").forEach((el) => {
+    el.addEventListener("input", () => {
+      const id = (el as HTMLElement).dataset.jobReply;
       if (!id) return;
-      const response = window.prompt("Reply / approval note", "approved") || "approved";
-      const token = getToken();
-      await fetch(`/api/jobs/${id}/respond`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ response, approve: true }),
-      });
-      void refreshTasks();
-    });
-  });
-  document.querySelectorAll("[data-job-cancel]").forEach((el) => {
-    el.addEventListener("click", async () => {
-      const id = (el as HTMLElement).dataset.jobCancel;
-      if (!id) return;
-      const token = getToken();
-      await fetch(`/api/jobs/${id}/cancel`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      void refreshTasks();
+      jobReplyDraft[id] = (el as HTMLTextAreaElement).value;
     });
   });
 
-  scrollTranscriptToLatest();
+  document.querySelectorAll("[data-job-reply-send]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = (el as HTMLElement).dataset.jobReplySend;
+      if (!id) return;
+      void respondJob(id, jobReplyDraft[id] || "", false);
+    });
+  });
+  document.querySelectorAll("[data-job-approve]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = (el as HTMLElement).dataset.jobApprove;
+      if (!id) return;
+      const note = (jobReplyDraft[id] || "").trim() || "approved";
+      void respondJob(id, note, true);
+    });
+  });
+  document.querySelectorAll("[data-job-cancel]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = (el as HTMLElement).dataset.jobCancel;
+      if (!id) return;
+      jobCancelConfirmId = id;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-job-cancel-no]").forEach((el) => {
+    el.addEventListener("click", () => {
+      jobCancelConfirmId = null;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-job-cancel-yes]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = (el as HTMLElement).dataset.jobCancelYes;
+      if (!id) return;
+      void cancelJob(id);
+    });
+  });
+}
+
+async function respondJob(jobId: string, response: string, approve: boolean) {
+  if (jobBusyId != null) return;
+  jobBusyId = jobId;
+  jobFormError = "";
+  render();
+  try {
+    const res = await fetch(`/api/jobs/${jobId}/respond`, {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ response, approve }),
+    });
+    if (!res.ok) {
+      const err = await readApiError(res);
+      jobFormError = err;
+      pushToast(err, "warn", jobId);
+      return;
+    }
+    const data = await res.json();
+    const job = (data.job || data) as JobRow;
+    if (job?.id) mergeJob(job);
+    delete jobReplyDraft[jobId];
+    pushToast(approve ? "Job approved" : "Reply sent", "ok", jobId);
+    void refreshTasks();
+  } catch {
+    jobFormError = "Could not reach the server";
+    pushToast(jobFormError, "warn", jobId);
+  } finally {
+    jobBusyId = null;
+    render();
+  }
+}
+
+async function cancelJob(jobId: string) {
+  if (jobBusyId != null) return;
+  jobBusyId = jobId;
+  jobFormError = "";
+  render();
+  try {
+    const res = await fetch(`/api/jobs/${jobId}/cancel`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await readApiError(res);
+      jobFormError = err;
+      pushToast(err, "warn", jobId);
+      return;
+    }
+    const data = await res.json();
+    const job = (data.job || data) as JobRow;
+    if (job?.id) mergeJob(job);
+    jobCancelConfirmId = null;
+    pushToast("Job cancelled", "info", jobId);
+    void refreshTasks();
+  } catch {
+    jobFormError = "Could not reach the server";
+    pushToast(jobFormError, "warn", jobId);
+  } finally {
+    jobBusyId = null;
+    jobCancelConfirmId = null;
+    render();
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -779,6 +1167,10 @@ function onMessage(data: any) {
     void refreshTasks();
   } else if (data.type === "job_update") {
     const job = data.job || {};
+    if (job.id) {
+      mergeJob(job as JobRow);
+      render();
+    }
     const status = String(job.status || "");
     // Fallback toast if a terminal update arrives without a separate notification.
     if (
@@ -792,13 +1184,7 @@ function onMessage(data: any) {
         job.id ? String(job.id) : undefined
       );
     } else if (job.id && (status === "completed" || status === "failed")) {
-      highlightJobId = String(job.id);
-      if (highlightTimer != null) window.clearTimeout(highlightTimer);
-      highlightTimer = window.setTimeout(() => {
-        highlightJobId = null;
-        highlightTimer = null;
-        render();
-      }, 8000);
+      flashJob(String(job.id));
     }
     void refreshTasks();
   }
@@ -840,6 +1226,7 @@ function connect() {
     connecting = false;
     connected = true;
     render();
+    void refreshTasks();
   };
   ws.onclose = () => {
     connecting = false;
@@ -865,6 +1252,19 @@ async function start() {
   authToken = await resolveToken();
   render();
   connect();
+}
+
+function ensureUiClock() {
+  if (uiClockTimer != null) return;
+  // 1s tick while timers (or active jobs) need live relative labels.
+  uiClockTimer = window.setInterval(() => {
+    if (timers.length || hasActiveJobs()) {
+      render();
+    } else if (uiClockTimer != null) {
+      window.clearInterval(uiClockTimer);
+      uiClockTimer = null;
+    }
+  }, 1000);
 }
 
 render();

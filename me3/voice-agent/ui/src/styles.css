@@ -479,28 +479,271 @@ body {
   padding-top: 0.75rem;
 }
 
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+
 .job-card {
-  padding: 0.55rem 0;
-  border-bottom: 1px solid #2c3a4f;
+  padding: 0.65rem 0.55rem;
+  border: 1px solid #2c3a4f;
+  border-radius: 0.45rem;
   font-size: 0.85rem;
-  transition: background 0.25s ease, box-shadow 0.25s ease;
+  background: rgba(21, 30, 45, 0.55);
+  transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .job-card.flash {
   background: rgba(61, 156, 240, 0.12);
   box-shadow: inset 3px 0 0 var(--accent);
-  border-radius: 0.35rem;
-  padding-left: 0.45rem;
+  border-color: rgba(61, 156, 240, 0.4);
 }
 
 .job-card.status-completed.flash {
   background: rgba(62, 207, 142, 0.12);
   box-shadow: inset 3px 0 0 var(--ok);
+  border-color: rgba(62, 207, 142, 0.4);
 }
 
 .job-card.status-failed.flash {
   background: rgba(232, 93, 93, 0.12);
   box-shadow: inset 3px 0 0 var(--danger);
+  border-color: rgba(232, 93, 93, 0.4);
+}
+
+.job-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.job-title {
+  font-weight: 560;
+  line-height: 1.35;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.job-when {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-pill {
+  display: inline-block;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #3a4d68;
+  color: var(--muted);
+  background: rgba(26, 35, 50, 0.8);
+}
+
+.status-pill.status-queued,
+.status-pill.status-running {
+  color: var(--accent);
+  border-color: rgba(61, 156, 240, 0.45);
+  background: rgba(61, 156, 240, 0.1);
+}
+
+.status-pill.status-needs_input,
+.status-pill.status-needs_approval {
+  color: var(--warn);
+  border-color: rgba(230, 162, 60, 0.45);
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.status-pill.status-completed {
+  color: var(--ok);
+  border-color: rgba(62, 207, 142, 0.45);
+  background: rgba(62, 207, 142, 0.1);
+}
+
+.job-live {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-pill.status-running .job-live,
+.jobs-live-banner.status-running .job-live {
+  background: var(--accent);
+}
+
+.status-pill.status-queued .job-live {
+  background: var(--warn);
+}
+
+.jobs-live-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2c3a4f;
+  background: rgba(61, 156, 240, 0.1);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.jobs-live-banner.status-running,
+.jobs-live-banner.status-queued {
+  border-color: rgba(61, 156, 240, 0.45);
+}
+
+.jobs-live-banner.status-needs_input,
+.jobs-live-banner.status-needs_approval {
+  border-color: rgba(230, 162, 60, 0.45);
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.jobs-live-banner.status-completed {
+  border-color: rgba(62, 207, 142, 0.45);
+  background: rgba(62, 207, 142, 0.1);
+}
+
+.jobs-live-banner strong {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  color: var(--accent);
+}
+
+.jobs-live-banner.status-completed strong {
+  color: var(--ok);
+}
+
+.jobs-live-title {
+  flex: 1 1 100%;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-pill.status-failed,
+.status-pill.status-cancelled {
+  color: var(--danger);
+  border-color: rgba(232, 93, 93, 0.4);
+  background: rgba(232, 93, 93, 0.08);
+}
+
+.job-outcome {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.job-reply {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.job-reply textarea,
+.job-submit textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.5rem;
+  background: #121a26;
+  border: 1px solid #2c3a4f;
+  color: var(--ink);
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.job-reply textarea:focus,
+.job-submit textarea:focus {
+  outline: none;
+  border-color: rgba(61, 156, 240, 0.65);
+}
+
+.job-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #2c3a4f;
+}
+
+.field-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.form-error {
+  margin-bottom: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(232, 93, 93, 0.4);
+  background: rgba(232, 93, 93, 0.1);
+  color: #f0b4b4;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.job-actions-secondary {
+  margin-top: 0.45rem;
+}
+
+.job-confirm-label {
+  font-size: 0.75rem;
+  color: var(--warn);
+  align-self: center;
+}
+
+.btn-primary {
+  background: rgba(61, 156, 240, 0.2) !important;
+  border-color: rgba(61, 156, 240, 0.55) !important;
+  color: #d7ecff !important;
+}
+
+.btn-danger {
+  background: rgba(232, 93, 93, 0.18) !important;
+  border-color: rgba(232, 93, 93, 0.5) !important;
+  color: #ffd0d0 !important;
+}
+
+.job-submit-btn {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
+.job-submit-btn:disabled,
+.job-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.timer-countdown {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .toast-stack {
@@ -549,21 +792,25 @@ body {
 
 .job-ask {
   color: var(--warn);
-  margin: 0.3rem 0;
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .job-actions {
   display: flex;
-  gap: 0.45rem;
-  margin-top: 0.35rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
 }
 
-.job-actions button {
+.job-actions button,
+.job-submit button {
   background: var(--bg1);
   color: var(--ink);
   border: 1px solid #2c3a4f;
   border-radius: 0.4rem;
-  padding: 0.3rem 0.6rem;
+  padding: 0.35rem 0.65rem;
   cursor: pointer;
   font: inherit;
   font-size: 0.75rem;

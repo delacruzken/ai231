@@ -13,7 +13,8 @@ When a choice is revisited, open a patch note and reference the decision ID here
 | 6 | M1A AEC first; no software AEC yet | agreed (laptop echo expected / not mitigated) |
 | 7 | Silero ONNX VAD (in-process; vendored from fd-benchmark) | verified laptop (Phase 1) |
 | 8 | UI session ON/OFF toggle | verified laptop (Phase 2) |
-| 9 | Pipecat 1.15.0 pin | verified laptop Phase 8 — transport shuttle for fdbench only; speech still local SessionController |
+| 9 | Pipecat 1.15.0 pin | verified laptop Phase 8 — **fdbench transport shuttle only**; live duplex = custom `SessionController` (Gap 2 Option A). See `docs/SYSTEM_TOPOLOGY.md` |
+| 14b | ASR/TTS topology | **Hybrid (Gap 1 Option B):** in-process engines on live path; same code exposed as `me3.mcp.asr` / `tts` WS servers |
 | 10 | Claude Haiku API | verified laptop — live model id `claude-haiku-4-5` (settings unchanged) |
 | 11 | Adaptive silence + transcript heuristics | verified sample bank (600/1200/2000 + incomplete heuristic) |
 | 12 | Pause overlap, classify, resume or yield | verified sample bank |

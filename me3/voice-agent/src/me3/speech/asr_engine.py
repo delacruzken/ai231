@@ -137,6 +137,32 @@ class StreamingAsrEngine:
             self._stream = self._recognizer.create_stream()
             return self._segment_id
 
+    def force_finalize(self, *, emit: bool = False) -> str:
+        """Close the current ASR segment without waiting for sherpa endpoint.
+
+        ME3 turn-taking commits on silence (~0.7–1.5s) before Zipformer endpoint
+        rules (~1.8–2.8s). After commit we gate ASR, so ``is_endpoint`` never fires
+        and ``asr_final`` marks stay empty (fdbench WER n=0). Call this on commit
+        to clear the stream; pass ``emit=True`` only when the caller did not already
+        publish the transcript.
+        """
+        with self._lock:
+            try:
+                while self._recognizer.is_ready(self._stream):
+                    self._recognizer.decode_stream(self._stream)
+            except Exception:
+                pass
+            text = (_result_text(self._recognizer, self._stream) or self._last_text or "").strip()
+            if emit and text:
+                self._emit("final", text)
+            try:
+                self._recognizer.reset(self._stream)
+            except Exception:
+                self._stream = self._recognizer.create_stream()
+            self._last_text = ""
+            self._segment_id = str(uuid4())
+            return text
+
     def accept_pcm(self, samples: np.ndarray, block: bool = True) -> None:
         """Enqueue float32 mono PCM. Blocks when queue is full (backpressure)."""
         if samples.dtype != np.float32:

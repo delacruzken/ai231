@@ -7,6 +7,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable
 from uuid import uuid4
@@ -123,6 +124,7 @@ class SessionController:
         self._barge_speech_ms = 0.0
         self._barge_last_mono: float | None = None
         self._barge_soft_paused = False
+        self._barge_quiet_ms = 0.0
         self._barge_asr_buf: list[np.ndarray] = []
         self._barge_vad_buf = np.zeros(0, dtype=np.float32)
         # Once soft-pause starts, mic audio feeds ASR so the interrupt is the next turn.
@@ -131,6 +133,10 @@ class SessionController:
         self._barge_keep_asr = False
         self._echo_rms_ema: float = 0.0
         self._echo_rms_ready: bool = False
+        # Job/timer lines spoken when idle — never preempt an in-flight reply's TTS.
+        self._pending_announcements: list[dict[str, Any]] = []
+        self._announce_lock = threading.Lock()
+        self._announce_flushing = False
 
         self.capture: Any = None
         self.playback: Any = None
@@ -273,9 +279,24 @@ class SessionController:
             st = SessionState(name)
         except ValueError:
             return
+        prev: SessionState | None
         with self._lock:
+            prev = self.state
             self.state = st
+        # Silence-commit moves LISTENING → THINKING before Zipformer endpoint.
+        # Finalize without emitting (pipeline marks asr_final on speculative commit).
+        if st == SessionState.THINKING and prev == SessionState.LISTENING and self.asr:
+            try:
+                self.asr.force_finalize(emit=False)
+            except Exception:
+                logger.exception("asr force_finalize on thinking failed")
         self._emit({"type": "session", **self.snapshot().as_dict()})
+        if st == SessionState.LISTENING and prev != SessionState.LISTENING:
+            threading.Thread(
+                target=self._flush_announcements,
+                name="announce-flush",
+                daemon=True,
+            ).start()
 
     def probe_readiness(self) -> Readiness:
         with self._lock:
@@ -361,7 +382,7 @@ class SessionController:
             enabled = self.enabled
         # Spoken + UI cues for terminal / blocking job states (same path as timer alerts).
         if status in ("needs_input", "needs_approval") and job.get("pending_user_request"):
-            msg = f"Job needs you: {job['pending_user_request']}"
+            msg = f"Your build needs you: {job['pending_user_request']}"
             self._emit(
                 {
                     "type": "notification",
@@ -372,11 +393,10 @@ class SessionController:
                 }
             )
             if enabled:
-                self._speak(msg, "notification")
+                self._queue_or_speak_announcement(msg)
             return
         if status == "completed":
-            label = (job.get("specification") or "your job").strip().split("\n", 1)[0][:80]
-            msg = f"Job finished: {label}."
+            msg = self._compose_job_completed_message(job)
             self._emit(
                 {
                     "type": "notification",
@@ -387,11 +407,11 @@ class SessionController:
                 }
             )
             if enabled:
-                self._speak(msg, "notification")
+                self._queue_or_speak_announcement(msg)
             return
         if status == "failed":
             detail = (job.get("outcome") or "unknown error").strip().split("\n", 1)[0][:120]
-            msg = f"Job failed: {detail}."
+            msg = f"Your build failed: {detail}."
             self._emit(
                 {
                     "type": "notification",
@@ -402,7 +422,153 @@ class SessionController:
                 }
             )
             if enabled:
-                self._speak(msg, "notification")
+                self._queue_or_speak_announcement(msg)
+
+    def _recent_user_asked_publish(self) -> bool:
+        """True if a recent user turn asked to publish (same request as the build)."""
+        keys = ("publish", "github page", "github pages", "pages site", "github repository")
+        with self._lock:
+            recent = list(self.transcript)[-16:]
+        for row in reversed(recent):
+            if (row.get("role") or "") != "user":
+                continue
+            text = (row.get("text") or "").lower()
+            if any(k in text for k in keys):
+                return True
+        return False
+
+    def _job_wants_publish(self, job: dict[str, Any]) -> bool:
+        budget = job.get("budget") if isinstance(job.get("budget"), dict) else {}
+        if budget.get("publish_when_done") is True:
+            return True
+        blob = f"{job.get('specification') or ''}\n{job.get('instructions') or ''}".lower()
+        if "publish_when_done" in blob or "publish to github" in blob:
+            return True
+        return self._recent_user_asked_publish()
+
+    def _compose_job_completed_message(self, job: dict[str, Any]) -> str:
+        """Short spoken/log line — never dump a truncated job specification."""
+        if not self._job_wants_publish(job):
+            return "Your build is done."
+        if self.publication is None:
+            return "Your build is done. Say when you want it published to GitHub Pages."
+        try:
+            hint = (job.get("specification") or "").strip().split("\n", 1)[0][:60]
+            result = self.publication.publish_site(
+                source_dir="",
+                job_id=str(job.get("id") or "") or None,
+                hint=hint,
+                confirm=True,
+                message=f"ME3 auto-publish after build {(job.get('id') or '')[:8]}",
+            )
+        except Exception as exc:
+            logger.exception("auto-publish after job failed")
+            detail = str(exc).strip().split("\n", 1)[0][:120]
+            return f"Your build is done, but publish failed: {detail}."
+        pub = result.get("publication") or {}
+        pages = result.get("pages") or {}
+        url = (
+            (pages.get("url") or "").rstrip("/")
+            or (pub.get("pages_url") or "").rstrip("/")
+            or ""
+        )
+        status = str(pub.get("status") or "")
+        if url and status in ("published", "committed_pages_pending"):
+            # Keep TTS speakable; URL still lands in the conversation log.
+            return (
+                f"Your build is done and published to GitHub Pages. "
+                f"Link: {url}/"
+            )
+        if url:
+            return f"Your build is done. Pages link: {url}/"
+        return "Your build is done and the publish commit succeeded. GitHub Pages may take a minute to update."
+
+    def _session_is_idle(self) -> bool:
+        with self._lock:
+            if not self.enabled or self.state != SessionState.LISTENING:
+                return False
+            if self.conversation is not None and self.conversation.active_turn_id:
+                return False
+        playing = False
+        if self.playback is not None:
+            try:
+                playing = float(self.playback.queue_seconds()) > 0.05
+            except Exception:
+                playing = False
+        return not playing
+
+    def _speak_announcement(self, msg: str, *, notif_id: str | None = None) -> None:
+        self._speak(msg, "notification")
+        if notif_id:
+            try:
+                self.tasks.mark_delivered(notif_id)
+            except Exception:
+                logger.exception("mark notification delivered failed")
+            self._emit(
+                {"type": "notification_delivered", "id": notif_id, "message": msg}
+            )
+
+    def _queue_or_speak_announcement(
+        self, msg: str, *, notif_id: str | None = None
+    ) -> None:
+        """Speak now if idle; otherwise wait until the current reply finishes TTS."""
+        if self._session_is_idle():
+            self._speak_announcement(msg, notif_id=notif_id)
+            return
+        start_flush = False
+        with self._announce_lock:
+            self._pending_announcements.append({"msg": msg, "notif_id": notif_id})
+            self._pending_announcements = self._pending_announcements[-8:]
+            if not self._announce_flushing:
+                self._announce_flushing = True
+                start_flush = True
+        logger.info("queued announcement until idle: %s", msg[:80])
+        if start_flush:
+            threading.Thread(
+                target=self._flush_announcements,
+                name="announce-flush",
+                daemon=True,
+            ).start()
+
+    def _flush_announcements(self) -> None:
+        """Wait out any in-flight reply, then speak queued lines (do not drop them)."""
+        try:
+            deadline = time.monotonic() + 180.0
+            while time.monotonic() < deadline:
+                with self._announce_lock:
+                    if not self._pending_announcements:
+                        return
+                if not self.enabled:
+                    time.sleep(0.3)
+                    continue
+                if self._session_is_idle():
+                    with self._announce_lock:
+                        if not self._pending_announcements:
+                            return
+                        item = self._pending_announcements.pop(0)
+                    self._speak_announcement(
+                        str(item.get("msg") or ""),
+                        notif_id=item.get("notif_id"),
+                    )
+                    time.sleep(0.3)
+                    continue
+                time.sleep(0.25)
+            logger.warning(
+                "announcement flush timed out; leaving %s pending",
+                len(self._pending_announcements),
+            )
+        finally:
+            with self._announce_lock:
+                self._announce_flushing = False
+                again = bool(self._pending_announcements)
+                if again:
+                    self._announce_flushing = True
+            if again:
+                threading.Thread(
+                    target=self._flush_announcements,
+                    name="announce-flush",
+                    daemon=True,
+                ).start()
 
     def _on_timer_notification(self, notif: dict[str, Any]) -> None:
         self._emit({"type": "notification", **notif})
@@ -415,9 +581,8 @@ class SessionController:
     def _deliver_notification(self, notif: dict[str, Any]) -> None:
         payload = notif.get("payload") or {}
         message = str(payload.get("message") or "Timer finished.")
-        self._speak(message, "notification")
-        self.tasks.mark_delivered(notif["id"])
-        self._emit({"type": "notification_delivered", "id": notif["id"], "message": message})
+        # Same idle queue as job-done — do not preempt an in-flight answer's TTS.
+        self._queue_or_speak_announcement(message, notif_id=notif.get("id"))
 
     def _drain_pending_notifications(self) -> None:
         for notif in self.tasks.drain_pending_notifications():
@@ -462,6 +627,19 @@ class SessionController:
                 time.monotonic() + max(0.05, len(samples) / float(rate or 22050)) + hang_ms / 1000.0,
             )
             self.playback.play(samples, rate, generation=gen)
+            # Idle announcements (job done / timer) were TTS-only — also log them.
+            if kind in ("notification", "clarify") and (text or "").strip():
+                self._emit(
+                    {
+                        "type": "transcript",
+                        "role": "assistant",
+                        "text": text.strip(),
+                        "partial": False,
+                        "final": True,
+                        "kind": kind,
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
 
     def _cancel_speech(self) -> None:
         from me3.benchmark.marks import mark
@@ -573,13 +751,29 @@ class SessionController:
             self.vad.reset()
         if self.conversation:
             self.conversation.reset_listening()
-        # Drain notifications that fired while OFF (timers keep running)
-        threading.Thread(
-            target=self._drain_pending_notifications,
-            name="notif-drain",
-            daemon=True,
-        ).start()
-        logger.info("session ON -> listening (llm=%s)", self.llm_backend)
+        # Fresh session: wipe timers/notes/jobs (owner profile + publications kept).
+        reset_summary = self._reset_session_tools()
+        self._emit({"type": "session_tools_reset", **reset_summary})
+        logger.info(
+            "session ON -> listening (llm=%s reset=%s)",
+            self.llm_backend,
+            reset_summary,
+        )
+
+    def _reset_session_tools(self) -> dict[str, Any]:
+        """Clear ephemeral tools state on each OFF→ON (demo / session restart)."""
+        summary: dict[str, Any] = {}
+        try:
+            summary["tasks"] = self.tasks.reset_for_session()
+        except Exception as exc:
+            logger.exception("session tools reset (tasks) failed")
+            summary["tasks_error"] = str(exc)
+        try:
+            summary["jobs"] = self.delegation.reset_for_session()
+        except Exception as exc:
+            logger.exception("session tools reset (jobs) failed")
+            summary["jobs_error"] = str(exc)
+        return summary
 
     def _turn_off_locked(self) -> None:
         self.enabled = False
@@ -750,8 +944,11 @@ class SessionController:
             or 320
         )
         confirm_ms = max(confirm_ms, pause_ms)
+        abandon_ms = int(getattr(self.cfg.session, "barge_in_abandon_ms", 500) or 500)
         ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 1.8) or 1.8)
         floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.012) or 0.012)
+        # After TTS ducks, Pi/M1A levels often drop — ease the floor for confirm only.
+        active_floor = floor * (0.55 if self._barge_soft_paused else 1.0)
 
         # Separate from ASR `_vad_buf` so soft-pause live capture isn't double-fed.
         self._barge_vad_buf = np.concatenate(
@@ -776,9 +973,9 @@ class SessionController:
             # Require absolute energy — never barge on near-silence.
             aec_like = self._echo_rms_ema < max(floor * 0.5, 0.004)
             if aec_like:
-                energy_hit = rms >= floor
+                energy_hit = rms >= active_floor
             else:
-                energy_hit = rms >= max(floor, self._echo_rms_ema * ratio)
+                energy_hit = rms >= max(active_floor, self._echo_rms_ema * ratio)
 
             vad_hit = False
             if self.vad and energy_hit:
@@ -794,17 +991,25 @@ class SessionController:
 
             if speech_hit:
                 speech_this_chunk = True
+                self._barge_quiet_ms = 0.0
                 self._barge_speech_ms += frame_ms
+            elif self._barge_soft_paused:
+                # Hold progress at pause_ms so brief dips don't unwind confirm.
+                self._barge_speech_ms = max(float(pause_ms), self._barge_speech_ms - frame_ms * 0.25)
+                self._barge_quiet_ms += frame_ms
+                if self._barge_quiet_ms >= abandon_ms:
+                    logger.info(
+                        "barge soft-pause abandoned after %.0fms quiet",
+                        self._barge_quiet_ms,
+                    )
+                    self._abandon_soft_barge()
             else:
                 self._barge_speech_ms = max(0.0, self._barge_speech_ms - frame_ms * 0.85)
-                if self._barge_speech_ms <= 0 and self._barge_soft_paused:
-                    # Noise blip after soft pause — abandon barge; stay speaking if LLM still active.
-                    logger.info("barge soft-pause abandoned (noise)")
-                    self._abandon_soft_barge()
+                self._barge_quiet_ms = 0.0
 
             if os.environ.get("ME3_BARGE_DEBUG"):
                 logger.info(
-                    "barge dbg rms=%.4f ema=%.4f E=%s V=%s soft=%s live=%s held=%.0f",
+                    "barge dbg rms=%.4f ema=%.4f E=%s V=%s soft=%s live=%s held=%.0f quiet=%.0f",
                     rms,
                     self._echo_rms_ema,
                     energy_hit,
@@ -812,6 +1017,7 @@ class SessionController:
                     self._barge_soft_paused,
                     self._barge_asr_live,
                     self._barge_speech_ms,
+                    self._barge_quiet_ms,
                 )
 
             if self._barge_speech_ms >= pause_ms and not self._barge_soft_paused:
@@ -835,6 +1041,7 @@ class SessionController:
         self._barge_speech_ms = 0.0
         self._barge_last_mono = None
         self._barge_soft_paused = False
+        self._barge_quiet_ms = 0.0
         self._barge_asr_buf.clear()
         self._barge_vad_buf = np.zeros(0, dtype=np.float32)
         if clear_asr_live:
@@ -869,6 +1076,7 @@ class SessionController:
         """Noise after soft-pause — drop interrupt capture and resume speaking path."""
         was_live = self._barge_asr_live
         self._barge_soft_paused = False
+        self._barge_quiet_ms = 0.0
         self._barge_asr_buf.clear()
         self._barge_vad_buf = np.zeros(0, dtype=np.float32)
         self._barge_asr_live = False
@@ -886,6 +1094,7 @@ class SessionController:
     def _soft_barge_pause(self) -> None:
         """Duck TTS immediately and start capturing the interrupt into ASR."""
         self._barge_soft_paused = True
+        self._barge_quiet_ms = 0.0
         logger.info("barge soft-pause after %.0fms — capturing interrupt", self._barge_speech_ms)
         if self.playback:
             with self._lock:

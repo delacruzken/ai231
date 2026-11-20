@@ -73,6 +73,10 @@ class TaskService:
     def close(self) -> None:
         self.store.close()
 
+    def reset_for_session(self) -> dict[str, int]:
+        """Clear timers/notes/notifications for a fresh session."""
+        return self.store.clear_session_ephemeral()
+
     def _tz(self) -> ZoneInfo | timezone:
         try:
             return ZoneInfo(self.timezone_name)

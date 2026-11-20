@@ -140,8 +140,12 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "Submit a coding/build job to the OpenCode worker. Call this whenever the owner "
             "wants a site, website, landing page, app, or coding job built/created/started/"
             "submitted, or says proceed/go ahead after agreeing on such work. Only one active "
-            "job is allowed — if busy, report that instead of pretending to submit. Returns a "
-            "job id promptly; do not claim the work is finished until jobs_status says completed."
+            "job is allowed — if busy, report that instead of pretending to submit. Confirm "
+            "submission by describing the work and that it is building — never read the job "
+            "id aloud. Do not claim the work is finished until jobs_status says completed. "
+            "If the owner also asked to publish to GitHub Pages in the same request, set "
+            "publish_when_done=true so the session publishes automatically when the build "
+            "finishes and announces the Pages link."
         ),
         "input_schema": {
             "type": "object",
@@ -154,6 +158,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     ),
                 },
                 "instructions": {"type": "string"},
+                "publish_when_done": {
+                    "type": "boolean",
+                    "description": (
+                        "True when the owner asked to publish this build to GitHub Pages "
+                        "(e.g. 'build and publish', 'put it on my Pages'). The session will "
+                        "publish on completion and announce the URL."
+                    ),
+                },
             },
             "required": ["specification"],
         },
@@ -162,12 +174,18 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "jobs_status",
         "description": (
             "Get the active job (if any) and recent jobs including completed/failed ones. "
-            "Jobs persist across chat restarts — use this when the owner asks what finished "
-            "or what was previously requested. Do not assume 'no jobs' without calling this."
+            "When the owner asks if a build is done / status / progress, call this with NO "
+            "job_id. Prefer the active job and summary fields; never tell the owner a job "
+            "id. Do not assume 'no jobs' without calling this."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"job_id": {"type": "string"}},
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "Optional. Omit for active/recent status checks.",
+                }
+            },
         },
     },
     {

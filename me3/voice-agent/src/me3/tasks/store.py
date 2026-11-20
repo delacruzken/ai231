@@ -324,6 +324,28 @@ class TaskStore:
             ).fetchone()
             return self._notif_row(row) if row else None
 
+    def clear_session_ephemeral(self) -> dict[str, int]:
+        """Wipe timers, notes, notifications, and task-tool idempotency (session restart)."""
+        with self._lock:
+            timers = self.conn.execute("DELETE FROM timers").rowcount
+            notes = self.conn.execute("DELETE FROM notes").rowcount
+            notifications = self.conn.execute("DELETE FROM notifications").rowcount
+            idem = self.conn.execute(
+                """
+                DELETE FROM tool_idempotency
+                WHERE tool LIKE 'timer.%'
+                   OR tool LIKE 'notes.%'
+                   OR tool LIKE 'web.%'
+                """
+            ).rowcount
+            self.conn.commit()
+            return {
+                "timers": int(timers or 0),
+                "notes": int(notes or 0),
+                "notifications": int(notifications or 0),
+                "idempotency": int(idem or 0),
+            }
+
     def _timer_row(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "id": row["id"],

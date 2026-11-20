@@ -216,13 +216,29 @@ class ConversationOrchestrator:
                 self.set_state("speaking")
                 self.overlap.reset()
             elif d.action == "yield":
-                self.on_event({"type": "overlap", "action": "yield", "reason": d.reason})
+                # Keep the interrupt text — previously reset() wiped it and the
+                # correction never became a turn until the user spoke again.
+                interrupt = (self.overlap.partial or self.turn_taker.partial_text or "").strip()
+                self.on_event(
+                    {
+                        "type": "overlap",
+                        "action": "yield",
+                        "reason": d.reason,
+                        "text": interrupt,
+                    }
+                )
                 self.cancel_active(reason=f"overlap_{d.reason}")
+                self.overlap.reset()
                 self.set_state("listening")
-                self.turn_taker.reset()
-                if self.turn_taker.partial_text:
-                    # keep partial as new turn seed
-                    pass
+                if interrupt:
+                    self.turn_taker.reset()
+                    self.turn_taker.on_partial(interrupt)
+                    self.turn_taker.on_speech()
+                    # Steering / contentful yield: commit immediately as the next turn.
+                    if d.reason in ("steering_phrase", "contentful_partial", "timeout_unresolved"):
+                        self.commit_user_turn(interrupt, speculative=True)
+                else:
+                    self.turn_taker.reset()
 
     def begin_overlap(self) -> None:
         self.overlap.begin()
@@ -310,6 +326,11 @@ class ConversationOrchestrator:
             from me3.benchmark.marks import mark
 
             try:
+                # Silence-commit path never waits for Zipformer endpoint (gated after
+                # THINKING). Emit asr_final here so fdbench can score WER / ASR latency
+                # before the (possibly speculative) llm_request.
+                if speculative:
+                    mark("asr_final", text=text)
                 messages = self.memory.recent_messages(self.cfg.session.max_context_turns)
                 # ensure last user is present
                 if not messages or messages[-1].get("content") != text:

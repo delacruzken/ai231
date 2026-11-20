@@ -59,6 +59,8 @@ class SessionConfig(BaseModel):
     barge_in_pause_ms: int = 160
     barge_in_confirm_ms: int = 320
     barge_in_hangover_ms: int = 200
+    # After soft-pause, allow this much quiet before abandoning (Pi/M1A dips).
+    barge_in_abandon_ms: int = 500
     # Mic RMS must exceed echo EMA * ratio (and absolute floor) to count as barge.
     barge_in_energy_ratio: float = 1.8
     barge_in_energy_floor: float = 0.012

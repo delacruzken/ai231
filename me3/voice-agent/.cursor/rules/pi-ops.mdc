@@ -1,0 +1,12 @@
+---
+description: Pi deploy ops — sync only, never start/stop ME3
+globs:
+alwaysApply: true
+---
+
+# Raspberry Pi ME3 ops
+
+- You may **rsync / scp** code and `ui/dist` to the Pi.
+- **Never** start, restart, kill, or `pkill` `python -m me3.app.main --serve` (or any ME3 server) on the Pi unless the user explicitly asks in that message.
+- The user owns ON/OFF and restarts. A leftover `--serve` holds the EMEET exclusively and breaks their next start.
+- If you previously left a serve running and the user reports EMEET busy, you may kill **only** that conflicting process when they ask to free the device — then stop. Do not start a replacement.
