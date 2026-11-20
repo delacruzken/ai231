@@ -46,8 +46,8 @@ class AudioConfig(BaseModel):
 class SessionConfig(BaseModel):
     # End-of-turn silence (ms). Incomplete / open questions wait longer to avoid mid-phrase cuts.
     silence_normal_ms: int = 700
-    silence_incomplete_ms: int = 1500
-    silence_clarification_ms: int = 2400
+    silence_incomplete_ms: int = 1800
+    silence_clarification_ms: int = 2600
     # After TTS, ignore mic briefly so laptop speaker→mic echo is not transcribed.
     echo_hangover_ms: int = 450
     # When True, do not feed ASR while bot audio is playing (laptop no-AEC default).

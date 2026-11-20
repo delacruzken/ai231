@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
+
+import numpy as np
 
 logger = logging.getLogger("me3.benchmark.reset")
 
 
 def reset_controller_for_trial(ctrl: Any) -> dict[str, Any]:
-    """Clear conversational + tool state between fdbench trials.
+    """Clear conversational + audio + tool state between fdbench trials.
 
-    Cancels speech/LLM, turns session OFF then ON, cancels active jobs,
-    cancels active timers, and clears the UI transcript buffer. Does not
-    wipe the owner profile or publication history.
+    Cancels speech/LLM, drains capture, resets ASR/VAD/turn-taker, clears echo
+    and barge trackers, turns session OFF then ON, cancels active jobs/timers,
+    and clears the UI transcript buffer. Does not wipe owner profile / publications.
     """
     summary: dict[str, Any] = {"ok": True}
 
@@ -33,7 +36,49 @@ def reset_controller_for_trial(ctrl: Any) -> dict[str, Any]:
     except Exception:
         pass
 
-    # Jobs
+    try:
+        if getattr(ctrl, "capture", None):
+            ctrl.capture.drain()
+    except Exception:
+        pass
+
+    lock = getattr(ctrl, "_announce_lock", None)
+    if lock is not None:
+        try:
+            with lock:
+                if hasattr(ctrl, "_pending_announcements"):
+                    ctrl._pending_announcements.clear()
+                if hasattr(ctrl, "_announce_flushing"):
+                    ctrl._announce_flushing = False
+        except Exception:
+            pass
+
+    try:
+        if hasattr(ctrl, "_reset_barge_tracker"):
+            ctrl._reset_barge_tracker()
+        ctrl._echo_gate_until = 0.0
+        ctrl._was_gating_asr = False
+        ctrl._vad_buf = np.zeros(0, dtype=np.float32)
+        ctrl._vad_in_speech = False
+    except Exception:
+        pass
+
+    try:
+        if getattr(ctrl, "asr", None):
+            try:
+                ctrl.asr.force_finalize(emit=False)
+            except Exception:
+                pass
+            ctrl.asr.reset_segment()
+    except Exception as exc:
+        summary["asr_error"] = str(exc)
+
+    try:
+        if getattr(ctrl, "vad", None):
+            ctrl.vad.reset()
+    except Exception:
+        pass
+
     cancelled_jobs = 0
     try:
         active = ctrl.delegation.registry.active_job()
@@ -46,7 +91,6 @@ def reset_controller_for_trial(ctrl: Any) -> dict[str, Any]:
     except Exception as exc:
         summary["jobs_error"] = str(exc)
 
-    # Timers
     cancelled_timers = 0
     try:
         for t in list(ctrl.tasks.store.list_timers(status="active") or []):
@@ -56,14 +100,24 @@ def reset_controller_for_trial(ctrl: Any) -> dict[str, Any]:
     except Exception as exc:
         summary["timers_error"] = str(exc)
 
-    # Transcript + OFF/ON flush
     try:
         with ctrl._lock:
             ctrl.transcript.clear()
             ctrl.last_error = None
         if ctrl.enabled:
             ctrl.set_enabled(False)
+        time.sleep(0.35)
         ctrl.set_enabled(True)
+        if getattr(ctrl, "asr", None):
+            try:
+                ctrl.asr.reset_segment()
+            except Exception:
+                pass
+        if getattr(ctrl, "capture", None):
+            try:
+                ctrl.capture.drain()
+            except Exception:
+                pass
         summary["session"] = "on"
     except Exception as exc:
         summary["session_error"] = str(exc)
