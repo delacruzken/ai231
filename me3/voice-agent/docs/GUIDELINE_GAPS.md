@@ -124,14 +124,15 @@ Gray cells look like Deepgram/Cartesia-style APIs (colleague deck). Local Zipfor
 
 | Field | Value |
 |---|---|
-| Status | `deferred` — design **A+B**; run when preparing deck Results |
+| Status | `partial` — course barge-in **n=1** on Pi `2026-11-21_02-13-46` (mean 1.92 s, over target); live soft-pause unchanged |
 | Priority | **P1** before final §5 table |
-| Chosen design | Keep live two-phase barge-in; score with interruption/FDB rounds (**A**) and cite `python -m me3.speech.barge_check` (**B**) until then |
+| Chosen design | Keep live two-phase barge-in; score with interruption/FDB rounds (**A**). Bench hard-stops at pause_ms so fdbench does not count `spoke_through` forever |
 
 ### Acceptance criteria
 
-- [ ] Course table barge-in n&gt;0 from automated run **or** linked microbench numbers
+- [x] Course table barge-in n&gt;0 from automated run (`02-13-46`, n=1) — optional: more rounds to thicken n / chase &lt;0.80 s
 - [x] Live path: stop TTS + cancel LLM + capture interrupt (already implemented)
+- [ ] Optional: `python -m me3.speech.barge_check` cite if staff want mic-path evidence
 
 ---
 
@@ -177,13 +178,13 @@ Gray cells look like Deepgram/Cartesia-style APIs (colleague deck). Local Zipfor
 
 ### Challenges slide one-liner
 
-> “We finalize ASR at silence-commit (not raw VAD end) so incomplete questions aren’t cut; course ASR-final latency is higher, WER stays measurable (laptop 5.7%).”
+> “ASR-final is end-of-speech → commit (not type-speed). We wait for silence so incomplete questions aren’t cut; that patience is why we miss &lt;0.80 s while Pi WER stays 10.4% &lt; 15% (`me3-pi-best`).”
 
 ### Acceptance criteria
 
 - [x] Behavior documented here + laptop WER n=20
-- [ ] Same Challenges line on deck
-- [ ] Re-confirm WER on Pi (Gap 3)
+- [x] Same Challenges line on deck (`docs/deck/ME3_2page_FILLED.md` §5 + Challenges)
+- [x] Re-confirm WER on Pi (Gap 3) — Pi bank `2026-11-21_00-01-46` WER 10.4%
 
 ---
 

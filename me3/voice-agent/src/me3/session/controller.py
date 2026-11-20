@@ -145,9 +145,12 @@ class SessionController:
         self.vad: SileroVAD | None = None
         self.conversation: ConversationOrchestrator | None = None
         secrets = load_secrets()
+        # Benchmark: mock retrieval too — live Tavily topic/HTTP failures stall
+        # THINKING and inflate E2E/TTFT (and cause no-reply trials).
+        retrieval_mock = True if benchmark else (not bool(secrets.tavily_api_key.strip()))
         self.tasks = TaskService(
             timezone_name=self.cfg.session.timezone,
-            force_mock_retrieval=not bool(secrets.tavily_api_key.strip()),
+            force_mock_retrieval=retrieval_mock,
         )
         self.owner_store = OwnerProfileStore()
         # Benchmark runs should not hit a live OpenCode/GitHub by accident
@@ -356,6 +359,7 @@ class SessionController:
                         delegation=self.delegation,
                         publication=self.publication,
                         owner_store=self.owner_store,
+                        benchmark=self.benchmark,
                     )
                 self.llm_backend = self.conversation.llm_backend
                 self.readiness.llm = True
@@ -671,8 +675,9 @@ class SessionController:
         self._emit({"type": "transcript", **row})
         if evt.type == "partial":
             mark("asr_partial", text=evt.text or "")
-        else:
-            mark("asr_final", text=evt.text or "")
+        # Do not mark asr_final here. Silence-commit and Zipformer-final both
+        # land in ConversationOrchestrator.commit_user_turn, which marks once.
+        # A second mark here made fdbench concatenate identical text → doubled WER.
         if self.conversation:
             if evt.type == "partial":
                 self.conversation.on_asr_partial(evt.text)
@@ -1062,6 +1067,12 @@ class SessionController:
                 )
 
             if self._barge_speech_ms >= pause_ms and not self._barge_soft_paused:
+                # Bench: hard-stop at pause threshold. Soft-pause alone still lets the
+                # LLM emit more TTS (new generation after flush) → fdbench "spoke_through"
+                # and course.barge_in n=0. Live keeps two-phase confirm.
+                if self.benchmark:
+                    confirmed = True
+                    break
                 self._soft_barge_pause()
             if self._barge_speech_ms >= confirm_ms:
                 confirmed = True

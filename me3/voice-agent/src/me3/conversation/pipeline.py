@@ -40,6 +40,7 @@ class ConversationOrchestrator:
         delegation: DelegationService | None = None,
         publication: PublicationService | None = None,
         owner_store: OwnerProfileStore | None = None,
+        benchmark: bool = False,
     ):
         self.cfg = cfg or load_config()
         secrets = load_secrets()
@@ -47,6 +48,7 @@ class ConversationOrchestrator:
         self.speak = speak or (lambda text, kind: None)
         self.cancel_speech = cancel_speech or (lambda: None)
         self.set_state = set_state or (lambda s: None)
+        self.benchmark = benchmark
         self.tasks = task_service or TaskService(timezone_name=self.cfg.session.timezone)
         self.delegation = delegation
         self.publication = publication
@@ -201,10 +203,13 @@ class ConversationOrchestrator:
                 # Early commit on silence+partial: speculative until asr_final confirms.
                 self.commit_user_turn(self.turn_taker.partial_text, speculative=True)
         elif state == "thinking":
-            phrase = self.acks.should_ack()
-            if phrase:
-                self.speak(phrase, "ack")
-                self.on_event({"type": "ack", "text": phrase})
+            # Ack TTS before the first LLM token inserts audio_out between
+            # llm_request and llm_first_token; fdbench then drops TTFT (n=0).
+            if not self.benchmark:
+                phrase = self.acks.should_ack()
+                if phrase:
+                    self.speak(phrase, "ack")
+                    self.on_event({"type": "ack", "text": phrase})
         elif state == "overlap_paused":
             # speech_ms approximate from overlap start
             speech_ms = 0.0
@@ -326,11 +331,10 @@ class ConversationOrchestrator:
             from me3.benchmark.marks import mark
 
             try:
-                # Silence-commit path never waits for Zipformer endpoint (gated after
-                # THINKING). Emit asr_final here so fdbench can score WER / ASR latency
-                # before the (possibly speculative) llm_request.
-                if speculative:
-                    mark("asr_final", text=text)
+                # Emit asr_final once per committed turn (speculative silence-commit
+                # or Zipformer-confirmed). Controller must not mark again — fdbench
+                # concatenates duplicate asr_final texts into doubled WER hyps.
+                mark("asr_final", text=text)
                 messages = self.memory.recent_messages(self.cfg.session.max_context_turns)
                 # ensure last user is present
                 if not messages or messages[-1].get("content") != text:

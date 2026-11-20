@@ -123,6 +123,37 @@ def test_silence_commit_marks_asr_final_then_speculative_llm(monkeypatch):
     orch.cancel_active(reason="test_done")
 
 
+def test_confirmed_commit_marks_asr_final_once(monkeypatch):
+    monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
+    orch = ConversationOrchestrator(force_mock=True)
+    orch.set_state = MagicMock()
+    marks: list[tuple[str, dict]] = []
+
+    def capture(stage: str, **fields):
+        marks.append((stage, fields))
+
+    with patch("me3.benchmark.marks.mark", side_effect=capture):
+        tid = orch.commit_user_turn("What time is it?", speculative=False)
+        assert tid
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and not any(s == "llm_request" for s, _ in marks):
+            time.sleep(0.02)
+    finals = [f for s, f in marks if s == "asr_final"]
+    assert len(finals) == 1
+    assert finals[0].get("text") == "What time is it?"
+    orch.cancel_active(reason="test_done")
+
+
+def test_benchmark_skips_ack_tts(monkeypatch):
+    monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
+    orch = ConversationOrchestrator(force_mock=True, benchmark=True)
+    orch.speak = MagicMock()
+    orch.acks.should_ack = MagicMock(return_value="mm-hmm")
+    orch.tick(enabled=True, state="thinking")
+    orch.speak.assert_not_called()
+    orch.acks.should_ack.assert_not_called()
+
+
 def test_asr_final_mismatch_restarts_confirmed_turn(monkeypatch):
     monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
     orch = ConversationOrchestrator(force_mock=True)
