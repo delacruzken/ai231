@@ -145,9 +145,12 @@ class SessionController:
         self.vad: SileroVAD | None = None
         self.conversation: ConversationOrchestrator | None = None
         secrets = load_secrets()
+        # Benchmark: mock retrieval too — live Tavily topic/HTTP failures stall
+        # THINKING and inflate E2E/TTFT (and cause no-reply trials).
+        retrieval_mock = True if benchmark else (not bool(secrets.tavily_api_key.strip()))
         self.tasks = TaskService(
             timezone_name=self.cfg.session.timezone,
-            force_mock_retrieval=not bool(secrets.tavily_api_key.strip()),
+            force_mock_retrieval=retrieval_mock,
         )
         self.owner_store = OwnerProfileStore()
         # Benchmark runs should not hit a live OpenCode/GitHub by accident
@@ -356,6 +359,7 @@ class SessionController:
                         delegation=self.delegation,
                         publication=self.publication,
                         owner_store=self.owner_store,
+                        benchmark=self.benchmark,
                     )
                 self.llm_backend = self.conversation.llm_backend
                 self.readiness.llm = True
@@ -671,8 +675,9 @@ class SessionController:
         self._emit({"type": "transcript", **row})
         if evt.type == "partial":
             mark("asr_partial", text=evt.text or "")
-        else:
-            mark("asr_final", text=evt.text or "")
+        # Do not mark asr_final here. Silence-commit and Zipformer-final both
+        # land in ConversationOrchestrator.commit_user_turn, which marks once.
+        # A second mark here made fdbench concatenate identical text → doubled WER.
         if self.conversation:
             if evt.type == "partial":
                 self.conversation.on_asr_partial(evt.text)
@@ -853,6 +858,30 @@ class SessionController:
             if muted and not gating and not self._barge_asr_live:
                 continue
             if gating:
+                # Benchmark: next clip often arrives while still THINKING. Preempt so
+                # the new phrase is transcribed instead of an empty trial.
+                if (
+                    self.benchmark
+                    and state == SessionState.THINKING
+                    and not muted
+                    and self._benchmark_preempt_energy(chunk)
+                ):
+                    try:
+                        if self.conversation:
+                            self.conversation.cancel_active("benchmark_preempt")
+                        self._cancel_speech()
+                        self._echo_gate_until = 0.0
+                        self._was_gating_asr = False
+                        self._reset_barge_tracker()
+                        if self.asr:
+                            self.asr.reset_segment()
+                        if self.conversation:
+                            self.conversation.turn_taker.reset()
+                        self._set_state("listening")
+                    except Exception:
+                        logger.exception("benchmark preempt failed")
+                    self._forward_asr(chunk, SessionState.LISTENING)
+                    continue
                 barged = self._watch_barge_in(chunk, state)
                 # Soft-pause / confirmed barge: keep capturing the interrupt into ASR.
                 if barged or self._barge_asr_live:
@@ -899,7 +928,9 @@ class SessionController:
         """Laptop without AEC: ignore mic while the bot is talking / audio is draining.
 
         Also gate during THINKING so Zipformer cannot endpoint the just-committed
-        utterance again and re-arm a duplicate turn.
+        utterance again and re-arm a duplicate turn. In benchmark mode, THINKING
+        alone does not hard-gate — fdbench's next clip must be able to preempt a
+        slow LLM turn (otherwise trials land with empty marks).
         """
         if not bool(getattr(self.cfg.session, "gate_asr_while_speaking", True)):
             return False
@@ -910,7 +941,15 @@ class SessionController:
                 playing = float(self.playback.queue_seconds()) > 0.04
             except Exception:
                 playing = False
-        if playing or state in (SessionState.SPEAKING, SessionState.THINKING):
+        if playing or state == SessionState.SPEAKING:
+            hang_ms = int(getattr(self.cfg.session, "echo_hangover_ms", 450) or 0)
+            self._echo_gate_until = max(self._echo_gate_until, now + hang_ms / 1000.0)
+            return True
+        if state == SessionState.THINKING:
+            if self.benchmark:
+                # Soft gate only: barge/preempt path still runs; hangover not extended
+                # for the whole LLM wait (that caused empty fdbench trials).
+                return True
             hang_ms = int(getattr(self.cfg.session, "echo_hangover_ms", 450) or 0)
             self._echo_gate_until = max(self._echo_gate_until, now + hang_ms / 1000.0)
             return True
@@ -918,6 +957,13 @@ class SessionController:
         if state == SessionState.OVERLAP_PAUSED:
             return False
         return now < self._echo_gate_until
+
+    def _benchmark_preempt_energy(self, chunk: np.ndarray) -> bool:
+        """True when injected fdbench speech is clearly louder than silence."""
+        if chunk.size == 0:
+            return False
+        rms = float(np.sqrt(np.mean(np.square(chunk.astype(np.float32)))))
+        return rms >= 0.02
 
     def _watch_barge_in(self, chunk: np.ndarray, state: SessionState) -> bool:
         """Two-phase barge: soft-pause TTS, then cancel only after sustained speech.
@@ -1021,6 +1067,12 @@ class SessionController:
                 )
 
             if self._barge_speech_ms >= pause_ms and not self._barge_soft_paused:
+                # Bench: hard-stop at pause threshold. Soft-pause alone still lets the
+                # LLM emit more TTS (new generation after flush) → fdbench "spoke_through"
+                # and course.barge_in n=0. Live keeps two-phase confirm.
+                if self.benchmark:
+                    confirmed = True
+                    break
                 self._soft_barge_pause()
             if self._barge_speech_ms >= confirm_ms:
                 confirmed = True

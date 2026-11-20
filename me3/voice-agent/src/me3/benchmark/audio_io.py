@@ -124,6 +124,10 @@ class BenchPlayback:
         except Exception:
             logger.exception("benchmark audio-out callback failed")
 
-    def wait_drain(self, timeout: float = 30.0) -> None:
+    def queue_seconds(self) -> float:
+        # Callback sink — audio is forwarded immediately (no local buffer).
+        return 0.0
+
+    def wait_drain(self, timeout: float = 30.0) -> bool:
         _ = timeout
-        return
+        return True

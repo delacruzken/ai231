@@ -37,8 +37,8 @@ session:
   # Silence heuristics (ms). Prefer waiting over cutting mid-phrase (M1A live).
   # Incomplete / open questions (no ? yet, truncated tails like "Pre") use the longer gate.
   silence_normal_ms: 700
-  silence_incomplete_ms: 1500
-  silence_clarification_ms: 2400
+  silence_incomplete_ms: 1800
+  silence_clarification_ms: 2600
   # Laptop speaker→mic: mute ASR while TTS plays + short hangover after.
   # Sustained louder speech still interrupts (barge-in) via VAD hold.
   echo_hangover_ms: 450

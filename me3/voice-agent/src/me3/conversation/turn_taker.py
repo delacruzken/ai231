@@ -29,12 +29,17 @@ TRUNCATED_TAIL = re.compile(
     r"(?:\b[A-Z][a-z]{0,3}\s*$|\b[A-Za-z](?:-[A-Za-z]{0,3})+\s*$|\b[A-Z](?:\s+[A-Z]){1,3}\s*$)"
 )
 
+# Short final tokens that are complete words (not cut-off syllables).
+_COMPLETE_SHORT_TAILS = frozenset(
+    {"am", "pm", "ok", "no", "yes", "hi", "me", "us", "it", "id", "ai", "tv"}
+)
+
 
 @dataclass
 class TurnTakerConfig:
     silence_normal_ms: int = 700
-    silence_incomplete_ms: int = 1500
-    silence_clarification_ms: int = 2400
+    silence_incomplete_ms: int = 1800
+    silence_clarification_ms: int = 2600
 
 
 @dataclass
@@ -91,17 +96,17 @@ class TurnTaker:
             body = t[:-1].rstrip()
             if not TRUNCATED_TAIL.search(body) and not INCOMPLETE_TAIL.search(body):
                 return False
-        if INCOMPLETE_TAIL.search(t):
             return True
-        if TRUNCATED_TAIL.search(t):
+        # No terminal punctuation: prefer waiting. Kroko often omits periods, and
+        # silence-commit at the normal gate was cutting mid-phrase on the Pi bank.
+        if INCOMPLETE_TAIL.search(t) or TRUNCATED_TAIL.search(t) or OPEN_STEM.search(t):
             return True
-        # Open stems without terminal punctuation — wait longer (e.g. "Who is the Pre").
-        if OPEN_STEM.search(t):
+        last = re.sub(r"[^A-Za-z0-9']+", "", t.split()[-1])
+        if 1 <= len(last) <= 2 and last.lower() not in _COMPLETE_SHORT_TAILS:
             return True
-        # very short fragments
         if len(t.split()) < 3:
             return True
-        return False
+        return True
 
     def threshold_ms(self, text: str | None = None) -> int:
         if self.is_incomplete(text):

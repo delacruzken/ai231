@@ -19,7 +19,7 @@ logger = logging.getLogger("me3.benchmark.bridge")
 
 
 class Me3AudioBridge:
-    """Holds the ME3 controller and pushes/pulls PCM for the Pipecat transport."""
+    """Holds the ME3 controller and pulls/pushes PCM for the Pipecat transport."""
 
     def __init__(self, log_dir: Path | None = None):
         self.cfg = load_config()
@@ -28,6 +28,11 @@ class Me3AudioBridge:
         self._out_q: asyncio.Queue[bytes | None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._started = False
+        # Auto trial reset after fdbench's inter-clip silence (no HTTP reset-cmd).
+        self._silent_samples = 0
+        self._heard_speech = False
+        self._reset_lock = threading.Lock()
+        self._resetting = False
 
     def start(self) -> None:
         if self._started:
@@ -53,18 +58,56 @@ class Me3AudioBridge:
         self._started = False
 
     def reset_trial(self) -> dict[str, Any]:
-        return reset_controller_for_trial(self.ctrl)
+        with self._reset_lock:
+            self._resetting = True
+            try:
+                return reset_controller_for_trial(self.ctrl)
+            finally:
+                self._silent_samples = 0
+                self._heard_speech = False
+                self._resetting = False
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop, out_q: asyncio.Queue[bytes | None]) -> None:
         self._loop = loop
         self._out_q = out_q
 
     def push_input_pcm(self, pcm: bytes, sample_rate: int = 16000) -> None:
-        if not self._started or not self.ctrl.capture:
+        if not self._started or not self.ctrl.capture or self._resetting:
             return
         if sample_rate != 16000:
             # fdbench always sends 16 kHz; ignore other rates
             return
+        # Detect fdbench inter-trial gap (long near-zero) after a phrase → hard reset.
+        # Must be longer than in-phrase pauses and silence-commit waits (~2.6s).
+        try:
+            arr = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+            rms = float(np.sqrt(np.mean(np.square(arr)))) if arr.size else 0.0
+            if rms >= 0.012:
+                self._heard_speech = True
+                self._silent_samples = 0
+            else:
+                self._silent_samples += int(arr.size)
+                idle = False
+                try:
+                    st = getattr(self.ctrl, "state", None)
+                    st_v = getattr(st, "value", st)
+                    active = None
+                    if getattr(self.ctrl, "conversation", None):
+                        active = self.ctrl.conversation.active_turn_id
+                    idle = st_v == "listening" and not active
+                except Exception:
+                    idle = False
+                # ≥4.5 s silence + listening/idle → between fdbench trials (gap is 6–10s).
+                if (
+                    self._heard_speech
+                    and idle
+                    and self._silent_samples >= int(16000 * 4.5)
+                ):
+                    logger.info("benchmark inter-trial silence → trial reset")
+                    self.reset_trial()
+                    return
+        except Exception:
+            logger.debug("silence-gap probe failed", exc_info=True)
         self.ctrl.capture.push_pcm16(pcm)
 
     def _on_playback(self, samples: np.ndarray, rate: int) -> None:

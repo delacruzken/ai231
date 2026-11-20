@@ -33,6 +33,16 @@ def test_mic_mute_keeps_session_enabled(monkeypatch):
     ctrl.shutdown()
 
 
+def test_benchmark_mocks_retrieval_even_with_tavily_key(monkeypatch):
+    monkeypatch.setenv("OPENCODE_FORCE_MOCK", "true")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-fake-for-bench")
+    ctrl = SessionController(benchmark=True)
+    assert ctrl.tasks.retrieval_provider == "mock"
+    assert ctrl.delegation.provider == "mock"
+    assert ctrl.publication.provider == "mock"
+    ctrl.shutdown()
+
+
 def test_bench_capture_playback_roundtrip():
     got: list[tuple[int, int]] = []
 
