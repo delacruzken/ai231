@@ -1,7 +1,7 @@
-# Claudette Chiong
+# Create a small, clean HTML page about deep learning with
 
 Mock worker placeholder (OpenCode was offline).
 
 Spec:
 
-Create a simple bio page for Claudette Chiong, a multimedia specialist and senior research associate at TVUP. Include her name, role, and brief background about her work on the UP System Mental Health and Well-being Conference 2023 as a camera person. Design should be clean and professional with a single HTML page.
+Create a small, clean HTML page about deep learning with key concepts (neural networks, layers, training, applications). Include a brief intro, sections on what deep learning is, how it works, real-world examples, and a simple visual or diagram if possible. Make it modern and readable. Publish to GitHub Pages when done.
