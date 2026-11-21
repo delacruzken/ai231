@@ -1,7 +1,7 @@
-# electrons
+# Create a public GitHub repository named "Deep Learning Weekly" with
 
 Mock worker placeholder (OpenCode was offline).
 
 Spec:
 
-Create a small informational page about electrons. Include a brief explanation of what electrons are, their charge, role in atoms, and how they conduct electricity. Make it simple and educational with clean HTML styling. Single page with an index.html file suitable for GitHub Pages.
+Create a public GitHub repository named "Deep Learning Weekly" with a README and landing page summarizing key deep learning breakthroughs, papers, and news from the past week (November 14-21, 2026). Include sections for: latest model releases, research papers, industry news, and tools/frameworks. Make it a clean, readable site published to GitHub Pages with links to sources and an update schedule note.
