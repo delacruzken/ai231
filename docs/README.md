@@ -1,7 +1,7 @@
-# Create a small, clean HTML page about deep learning with
+# electrons
 
 Mock worker placeholder (OpenCode was offline).
 
 Spec:
 
-Create a small, clean HTML page about deep learning with key concepts (neural networks, layers, training, applications). Include a brief intro, sections on what deep learning is, how it works, real-world examples, and a simple visual or diagram if possible. Make it modern and readable. Publish to GitHub Pages when done.
+Create a small informational page about electrons. Include a brief explanation of what electrons are, their charge, role in atoms, and how they conduct electricity. Make it simple and educational with clean HTML styling. Single page with an index.html file suitable for GitHub Pages.
