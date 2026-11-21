@@ -45,15 +45,15 @@ session:
   gate_asr_while_speaking: true
   # Barge: energy required; soft-pause TTS + start ASR on interrupt, then confirm
   # cancels the LLM while keeping the captured interrupt as the next user turn.
-  barge_in_vad_threshold: 0.50
-  barge_in_pause_ms: 160
-  barge_in_confirm_ms: 320
-  barge_in_hold_ms: 320
+  barge_in_vad_threshold: 0.55
+  barge_in_pause_ms: 280
+  barge_in_confirm_ms: 550
+  barge_in_hold_ms: 550
   barge_in_hangover_ms: 0
   # Quiet grace after soft-pause before abandoning (Pi/M1A level dips)
-  barge_in_abandon_ms: 500
-  barge_in_energy_ratio: 1.8
-  barge_in_energy_floor: 0.012
+  barge_in_abandon_ms: 400
+  barge_in_energy_ratio: 2.5
+  barge_in_energy_floor: 0.025
   ack_delay_ms: 700
   backchannel_enabled: false
   backchannel_cooldown_ms: 10000

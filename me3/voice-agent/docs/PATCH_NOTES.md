@@ -19,6 +19,7 @@ One file per change under [`patches/`](patches/). Use [`patches/_TEMPLATE.md`](p
 
 | ID | Phase | Verdict | Summary |
 |---|---|---|---|
+| [2026-11-21_coco-harness-name](patches/2026-11-21_coco-harness-name.md) | docs/deck | neutral | Name live duplex harness **Coco** (persona **Kaki**); refresh deck/topology |
 | [2026-11-20_asr-final-on-silence-commit](patches/2026-11-20_asr-final-on-silence-commit.md) | 8/fdbench | improved | Silence-commit emits `asr_final` before speculative LLM so course WER can score |
 | [2026-11-19_turn-endpoint-patience](patches/2026-11-19_turn-endpoint-patience.md) | 2/conversation | improved | Longer silence + incomplete heuristics; slower sherpa endpoint |
 | [2026-11-19_asr-kroko-beam-agc](patches/2026-11-19_asr-kroko-beam-agc.md) | 2/speech | improved | Kroko ASR + beam search + soft AGC for M1A mic quality |

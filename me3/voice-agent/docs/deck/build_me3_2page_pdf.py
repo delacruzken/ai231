@@ -48,7 +48,7 @@ def header(c: canvas.Canvas, page: int) -> None:
     c.setFont("Helvetica-Bold", 11)
     c.drawString(18, H - 23, "MACHINE EXERCISE — 2-PAGE  ·  Full-Duplex Voice Agent on a Raspberry Pi")
     c.setFont("Helvetica", 8)
-    c.drawRightString(W - 18, H - 22, f"ME3 Kaki  ·  2015-02211  ·  {page}/2")
+    c.drawRightString(W - 18, H - 22, f"ME3 Kaki / Coco  ·  2015-02211  ·  {page}/2")
     c.setFillColor(TEAL)
     c.rect(0, H - 40, W, 4, fill=1, stroke=0)
 
@@ -120,7 +120,7 @@ def page1(c: canvas.Canvas) -> None:
     c.roundRect(30, 250, 560, 130, 5, fill=1, stroke=1)
     c.setFillColor(NAVY)
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(40, 362, "ME3 CUSTOM HARNESS  ·  SessionController + ConversationOrchestrator + UI :8780")
+    c.drawString(40, 362, "COCO HARNESS  ·  SessionController + ConversationOrchestrator + UI :8780")
     c.setFont("Helvetica", 6.5)
     c.setFillColor(GRAY)
     c.drawString(40, 348, "turn-taking · echo gate · two-phase barge-in · tool dispatch")
@@ -291,7 +291,7 @@ def page2(c: canvas.Canvas) -> None:
         [
             ["ASR", "me3.mcp.asr WS + in-process live", "PCM → partial/final", "Kroko Zipformer", "On device; final at silence-commit"],
             ["TTS", "me3.mcp.tts WS + in-process live", "speak / cancel", "Piper lessac-medium", "On device; cancel on barge-in"],
-            ["LLM", "harness HTTP client", "tools / function-calling", "claude-haiku-4-5", "Cloud Anthropic; streaming"],
+            ["LLM", "Coco HTTP client", "tools / function-calling", "claude-haiku-4-5", "Cloud Anthropic; streaming"],
             ["VAD", "in-process", "detect_speech(frames)", "Silero ONNX", "On device; 16 kHz mono"],
             ["Tasks", "me3.mcp.tasks", "timer.* notes.* web.*", "→ Tavily", "On device; search API cloud"],
             ["Delegation", "me3.mcp.delegation", "jobs.submit/status/…", "OpenCode / mock", "On device worker"],

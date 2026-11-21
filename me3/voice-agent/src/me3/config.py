@@ -55,17 +55,17 @@ class SessionConfig(BaseModel):
     gate_asr_while_speaking: bool = True
     # Barge-in: require real mic energy (not silence-boosted VAD). Soft-pause TTS
     # first; only cancel the LLM turn after confirm_ms of sustained speech.
-    barge_in_vad_threshold: float = 0.50
-    barge_in_pause_ms: int = 160
-    barge_in_confirm_ms: int = 320
+    barge_in_vad_threshold: float = 0.55
+    barge_in_pause_ms: int = 280
+    barge_in_confirm_ms: int = 550
     barge_in_hangover_ms: int = 200
     # After soft-pause, allow this much quiet before abandoning (Pi/M1A dips).
-    barge_in_abandon_ms: int = 500
+    barge_in_abandon_ms: int = 400
     # Mic RMS must exceed echo EMA * ratio (and absolute floor) to count as barge.
-    barge_in_energy_ratio: float = 1.8
-    barge_in_energy_floor: float = 0.012
+    barge_in_energy_ratio: float = 2.5
+    barge_in_energy_floor: float = 0.025
     # Deprecated alias — prefer barge_in_confirm_ms.
-    barge_in_hold_ms: int = 320
+    barge_in_hold_ms: int = 550
     ack_delay_ms: int = 700
     backchannel_enabled: bool = False
     backchannel_cooldown_ms: int = 10000
