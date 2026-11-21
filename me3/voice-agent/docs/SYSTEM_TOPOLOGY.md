@@ -10,7 +10,7 @@ USB mic/speaker (M1A when available)
         │
         ▼
 ┌───────────────────────────────────────────────────────────┐
-│  ME3 session runtime (custom)                             │
+│  Coco harness (ME3 custom duplex runtime)                 │
 │  SessionController · ConversationOrchestrator · UI :8780  │
 │                                                           │
 │   Silero VAD (in-process)                                 │
@@ -58,9 +58,9 @@ Raw microphone audio is **not** sent to cloud speech APIs.
 
 ## Harness / Pipecat (Gap 2)
 
-- **Live duplex:** ME3 custom session runtime (not a full Pipecat speech pipeline).
-- **fd-benchmark:** Pipecat 1.15 transport shuttle → same `SessionController` (`me3.benchmark.bridge`).
-- Deck line: *“Custom ME3 duplex runtime; Pipecat used as the fdbench audio transport adapter.”*
+- **Live duplex:** **Coco** — ME3 custom session runtime (not a full Pipecat speech pipeline).
+- **fd-benchmark:** Pipecat 1.15 transport shuttle → same Coco/`SessionController` (`me3.benchmark.bridge`).
+- Deck line: *“Coco (custom ME3 duplex harness); Pipecat used as the fdbench audio transport adapter.”*
 
 ## MCP services (deck §4 rows)
 

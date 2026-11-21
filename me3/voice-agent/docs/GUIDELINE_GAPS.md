@@ -52,12 +52,12 @@ Instructor requires every audio chunk to traverse a separate MCP process (then i
 |---|---|
 | Status | `closed` — **Option A Honest labeling** 2026-11-20 |
 | Priority | — |
-| Chosen design | Live duplex = **ME3 `SessionController`**. Pipecat 1.15 = **fdbench transport shuttle only** |
+| Chosen design | Live duplex = **Coco** (`SessionController`). Pipecat 1.15 = **fdbench transport shuttle only** |
 
 ### Resolution
 
-- README + `DECISIONS.md` #9 + `SYSTEM_TOPOLOGY.md` use the same wording.
-- Deck harness line: *“Custom ME3 duplex runtime; Pipecat used as the fdbench audio transport adapter.”*
+- README + `DECISIONS.md` #9/#23 + `SYSTEM_TOPOLOGY.md` use the same wording.
+- Deck harness line: *“Coco (custom ME3 duplex harness); Pipecat used as the fdbench audio transport adapter.”*
 - Option C (thin Pipecat shell) deferred unless course staff require a Pipecat process tree.
 
 ### Acceptance criteria

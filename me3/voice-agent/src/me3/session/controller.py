@@ -1,4 +1,9 @@
-"""Session controller Phase 3: Off/Listening/Thinking/Speaking/OverlapPaused."""
+"""Coco harness core — SessionController (Off/Listening/Thinking/Speaking/OverlapPaused).
+
+Product name **Coco** = this live duplex runtime (mic pump, states, echo gate, barge-in,
+ASR/TTS). The spoken agent persona remains **Kaki**. Classmates' "Pipecat harness" maps
+to Coco here; Pipecat itself is only the fdbench transport shuttle.
+"""
 
 from __future__ import annotations
 
@@ -992,9 +997,12 @@ class SessionController:
         confirm_ms = max(confirm_ms, pause_ms)
         abandon_ms = int(getattr(self.cfg.session, "barge_in_abandon_ms", 500) or 500)
         ratio = float(getattr(self.cfg.session, "barge_in_energy_ratio", 1.8) or 1.8)
-        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.012) or 0.012)
-        # After TTS ducks, Pi/M1A levels often drop — ease the floor for confirm only.
-        active_floor = floor * (0.55 if self._barge_soft_paused else 1.0)
+        floor = float(getattr(self.cfg.session, "barge_in_energy_floor", 0.025) or 0.025)
+        # After TTS ducks, ease slightly for confirm — but not enough for room noise.
+        active_floor = floor * (0.75 if self._barge_soft_paused else 1.0)
+        # Thinking has no TTS echo baseline; ambient noise used to trip barge easily.
+        if state == SessionState.THINKING and not playing:
+            active_floor = max(active_floor, floor * 1.35)
 
         # Separate from ASR `_vad_buf` so soft-pause live capture isn't double-fed.
         self._barge_vad_buf = np.concatenate(
@@ -1032,8 +1040,8 @@ class SessionController:
                 except Exception:
                     vad_hit = False
 
-            # Energy is mandatory; VAD can reinforce but never alone.
-            speech_hit = energy_hit
+            # Require energy AND VAD — energy-alone was cutting replies on room noise.
+            speech_hit = energy_hit and (vad_hit if self.vad is not None else True)
 
             if speech_hit:
                 speech_this_chunk = True

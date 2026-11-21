@@ -130,6 +130,8 @@ class StreamingAsrEngine:
             self._stop.set()
 
     def reset_segment(self) -> str:
+        # Must not race the ASR worker: sherpa-onnx streams are not thread-safe;
+        # barge soft-pause used to segfault on Pi by create_stream() mid-decode.
         with self._lock:
             self._segment_id = str(uuid4())
             self._last_text = ""
@@ -153,15 +155,15 @@ class StreamingAsrEngine:
             except Exception:
                 pass
             text = (_result_text(self._recognizer, self._stream) or self._last_text or "").strip()
-            if emit and text:
-                self._emit("final", text)
             try:
                 self._recognizer.reset(self._stream)
             except Exception:
                 self._stream = self._recognizer.create_stream()
             self._last_text = ""
             self._segment_id = str(uuid4())
-            return text
+        if emit and text:
+            self._emit("final", text)
+        return text
 
     def accept_pcm(self, samples: np.ndarray, block: bool = True) -> None:
         """Enqueue float32 mono PCM. Blocks when queue is full (backpressure)."""
@@ -210,32 +212,45 @@ class StreamingAsrEngine:
                 self._finish_stream()
                 break
             t0 = time.monotonic()
-            self._stream.accept_waveform(16000, item)
-            self.stats.audio_seconds += len(item) / 16000.0
-            while self._recognizer.is_ready(self._stream):
-                self._recognizer.decode_stream(self._stream)
-            text = _result_text(self._recognizer, self._stream)
-            if text and text != self._last_text:
-                self._last_text = text
-                self._emit("partial", text)
-            if self._recognizer.is_endpoint(self._stream):
-                final = _result_text(self._recognizer, self._stream)
-                if final:
-                    self._emit("final", final)
-                self._recognizer.reset(self._stream)
-                self._last_text = ""
-                with self._lock:
+            # Hold the same lock as reset_segment/force_finalize so barge cannot
+            # replace the stream while decode is in native code. Emit outside the
+            # lock — on_event may commit → force_finalize and would deadlock.
+            partial_text: str | None = None
+            final_text: str | None = None
+            with self._lock:
+                self._stream.accept_waveform(16000, item)
+                self.stats.audio_seconds += len(item) / 16000.0
+                while self._recognizer.is_ready(self._stream):
+                    self._recognizer.decode_stream(self._stream)
+                text = _result_text(self._recognizer, self._stream)
+                if text and text != self._last_text:
+                    self._last_text = text
+                    partial_text = text
+                if self._recognizer.is_endpoint(self._stream):
+                    final = _result_text(self._recognizer, self._stream)
+                    if final:
+                        final_text = final
+                    self._recognizer.reset(self._stream)
+                    self._last_text = ""
                     self._segment_id = str(uuid4())
+            if partial_text is not None:
+                self._emit("partial", partial_text)
+            if final_text is not None:
+                self._emit("final", final_text)
             self.stats.process_seconds += time.monotonic() - t0
 
     def _finish_stream(self) -> None:
         t0 = time.monotonic()
         tail = np.zeros(int(16000 * 0.5), dtype=np.float32)
-        self._stream.accept_waveform(16000, tail)
-        self._stream.input_finished()
-        while self._recognizer.is_ready(self._stream):
-            self._recognizer.decode_stream(self._stream)
-        final = _result_text(self._recognizer, self._stream)
-        if final:
-            self._emit("final", final)
+        final_text: str | None = None
+        with self._lock:
+            self._stream.accept_waveform(16000, tail)
+            self._stream.input_finished()
+            while self._recognizer.is_ready(self._stream):
+                self._recognizer.decode_stream(self._stream)
+            final = _result_text(self._recognizer, self._stream)
+            if final:
+                final_text = final
+        if final_text is not None:
+            self._emit("final", final_text)
         self.stats.process_seconds += time.monotonic() - t0

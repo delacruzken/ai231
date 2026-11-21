@@ -94,5 +94,5 @@ def me3_model_card() -> dict[str, str]:
         "LLM": cfg.models.llm,
         "TTS": cfg.models.tts,
         "VAD": cfg.models.vad,
-        "harness": "me3.benchmark",
+        "harness": "Coco (me3.benchmark)",
     }

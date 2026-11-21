@@ -7,7 +7,7 @@ Use this when walking someone through the build. Start with the **elevator story
 | Name | Role in one sentence |
 |---|---|
 | **Session UI** (`:8780`) | Laptop browser ON/OFF + transcript; not the brain |
-| **SessionController** | The **custom harness** — owns mic pump, states, echo gate, barge-in, ASR/TTS engines |
+| **Coco** (`SessionController`) | Our **named duplex harness** — mic pump, states, echo gate, barge-in, ASR/TTS engines |
 | **ConversationOrchestrator** | Turn-taking, LLM call, tools, when to speak |
 | **Silero VAD** | “Is this frame speech?” |
 | **Kroko Zipformer (ASR)** | Streaming speech → text (local) |
@@ -20,7 +20,7 @@ Use this when walking someone through the build. Start with the **elevator story
 
 ## 0 · Elevator story (30 seconds)
 
-> We built a **full-duplex voice agent** called Kaki. The **live harness is our own** `SessionController`: it reads the mic, runs local VAD + ASR, decides when the user finished speaking, calls Claude Haiku with tools, speaks back with local Piper TTS, and can be interrupted mid-sentence. Speech stays on the device; only the LLM and a few APIs (Tavily, GitHub) go to the cloud. **Pipecat** is installed mainly so the **class benchmark** can inject audio and collect stage marks — classmates often use Pipecat as the whole agent; we use it as a transport adapter.
+> We built a **full-duplex voice agent** called **Kaki** on a custom harness we call **Coco** (`SessionController`): it reads the mic, runs local VAD + ASR, decides when the user finished speaking, calls Claude Haiku with tools, speaks back with local Piper TTS, and can be interrupted mid-sentence. Speech stays on the device; only the LLM and a few APIs (Tavily, GitHub) go to the cloud. **Pipecat** is installed mainly so the **class benchmark** can inject audio and collect stage marks — classmates often use Pipecat as the whole agent; we use it as a transport adapter into Coco.
 
 ---
 
@@ -152,13 +152,13 @@ Live `--serve` runs ASR/TTS **in-process** inside the harness (fast path). We al
 
 | | ME3 | Typical classmate |
 |---|---|---|
-| Live agent loop | **Our** SessionController | **Pipecat** pipeline |
+| Live agent loop | **Coco** (`SessionController`) | **Pipecat** pipeline |
 | ASR/TTS | Local models in-process | Often cloud API behind MCP |
 | Pipecat role | fdbench shuttle | Whole product |
 | Turn end | Our silence / incomplete heuristics | Often provider end-of-turn |
 
 **Explain it this way:**  
-“The assignment asks for *a* harness with MCP support — examples are Pipecat/onit/crew. We built a **custom harness** and use Pipecat for the **benchmark transport**. Functionally we still do mic→VAD→ASR→LLM+tools→TTS with barge-in.”
+“The assignment asks for *a* harness with MCP support — examples are Pipecat/onit/crew. We built **Coco**, our custom harness, and use Pipecat for the **benchmark transport**. Functionally we still do mic→VAD→ASR→LLM+tools→TTS with barge-in.”
 
 ---
 

@@ -1,6 +1,6 @@
 # ME3 — Machine Exercise 2-page deck (FILLED DRAFT)
 
-**Student:** 2015-02211 · **Agent:** Kaki · **Target:** Raspberry Pi 5  
+**Student:** 2015-02211 · **Agent:** Kaki · **Harness:** Coco · **Target:** Raspberry Pi 5  
 **Repo:** `delacruzken/ai231` · `me3/voice-agent`  
 **Honesty label:** §5 / Results use **Pi remote** bank `2026-11-21_00-01-46` (tag `me3-pi-best`) unless marked laptop. Laptop `2026-11-20_09-04-05` remains a comparison footnote only.
 
@@ -21,7 +21,7 @@ Use this to compare against classmate decks (e.g. Pipecat + cloud ASR/TTS). Gray
          (Kroko Zipformer)         streaming partials → silence-commit final
                 │
                 ▼
- ┌── ME3 CUSTOM HARNESS ─────────────────────────────────────────────────────────────┐
+ ┌── COCO HARNESS (ME3 custom duplex runtime) ───────────────────────────────────────┐
  │  SessionController + ConversationOrchestrator + UI :8780                          │
  │  turn-taking · echo gate · two-phase barge-in · tool dispatch                     │
  │         │                                                                         │
@@ -40,15 +40,16 @@ Use this to compare against classmate decks (e.g. Pipecat + cloud ASR/TTS). Gray
  Barge-in: speech (energy+VAD) → soft-pause TTS → confirm → cancel LLM + listen
            (interrupt audio kept as next user turn)
 
- fd-benchmark only: Pipecat 1.15 transport shuttle → same SessionController
+ fd-benchmark only: Pipecat 1.15 transport shuttle → same Coco / SessionController
 ```
 
+**Naming:** **Kaki** = spoken agent · **Coco** = duplex harness (our answer to “Pipecat / onit / crew”).  
 **Cloud boundary (outside the box):** Anthropic Claude Haiku · Tavily · GitHub.  
 **Not in cloud:** mic PCM / ASR / TTS (local models).
 
 | Template expectation | ME3 (honest) | vs classmate (typical) |
 |---|---|---|
-| Harness e.g. Pipecat | **Custom ME3 harness**; Pipecat = **bench adapter** | Pipecat **is** the live agent |
+| Harness e.g. Pipecat | **Coco** (custom ME3 duplex); Pipecat = **bench adapter** | Pipecat **is** the live agent |
 | ASR/TTS MCP on path | Engines **in-process**; MCP/WS = **same code, optional process** | `voice-listen` / `voice-speak` MCP → **cloud** APIs |
 | Barge-in stops TTS+LLM | Yes (two-phase confirm) | Yes (often VAD → hard stop) |
 
@@ -94,7 +95,7 @@ Never invent credentials or private data.
 |---|---|---|---|---|
 | **ASR** | `me3.mcp.asr` / loopback WS (+ **in-process** live path) | session + streaming PCM → partial/final | Kroko Zipformer `…-2025-08-06` | **On device**; final at **silence-commit** (not raw VAD end) |
 | **TTS** | `me3.mcp.tts` / loopback WS (+ **in-process** live path) | speak / stream / cancel | Piper `en_US-lessac-medium` | **On device**; cancel on barge-in |
-| **LLM** | Harness HTTP client (not an MCP server) | tool / function calling | `claude-haiku-4-5` | **Cloud** Anthropic; streaming tokens |
+| **LLM** | Coco HTTP client (not an MCP server) | tool / function calling | `claude-haiku-4-5` | **Cloud** Anthropic; streaming tokens |
 | **VAD** | in-process | speech frames @ 16 kHz | Silero ONNX | On device |
 | **Tasks** | `me3.mcp.tasks` | `timer.*` `notes.*` `web.*` | n/a → Tavily | On device; cloud for search API |
 | **Delegation** | `me3.mcp.delegation` | `jobs.submit/status/…` | OpenCode or mock | On device worker |
@@ -163,7 +164,7 @@ ASR-final is **not** “how fast Zipformer types.” It is **VAD end → moment 
 | Course barge-in n=0 / spoke_through | Stage-latency has no cut-ins; FDB rounds + hard-stop in **benchmark** (live keeps soft-pause) | Pi `02-13-46` barge **1.92 s** n=1 (over &lt;0.80 s; thin n) |
 | False barge-in on noise | Energy floor + soft-pause then confirm (live) | `ME3_BARGE_DEBUG` logs; live interrupt capture |
 | Echo without AEC | Gate ASR while speaking + hangover | Duplex soak; M1A AEC still pending on Pi |
-| Harness ≠ Pipecat live | Honest diagram: custom runtime; Pipecat = fdbench shuttle | Topology doc + README |
+| Harness ≠ Pipecat live | Name it **Coco**; Pipecat = fdbench shuttle only | Topology doc + README · decision #23 |
 
 **Refs:** `docs/SYSTEM_TOPOLOGY.md` · `docs/benchmarks/2026-11-21_00-01-46_pi_RESULTS.md` · `…_01-50-26_pi_RESULTS.md` · `…_02-13-46_pi_RESULTS.md` · tag `me3-pi-best`
 
@@ -173,7 +174,7 @@ ASR-final is **not** “how fast Zipformer types.” It is **VAD end → moment 
 
 | Deck section | ME3 draft readiness | Typical classmate (Pipecat + cloud speech) |
 |---|---|---|
-| §1 Diagram | Strong if we keep **honest** custom harness + local speech | Strong textbook MCP arrows |
+| §1 Diagram | Strong: **Coco** named harness + local speech | Strong textbook MCP arrows |
 | §2 Prompt | Ready (v1) | Usually ready |
 | §3 Context | Ready | Usually ready |
 | §4 MCP table | Ready **with caveat** (in-process live ASR/TTS) | Cleaner “MCP holds API key” story |
