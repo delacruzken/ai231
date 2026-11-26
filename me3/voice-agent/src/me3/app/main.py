@@ -10,6 +10,7 @@ import sys
 
 from me3 import __version__
 from me3.config import load_config, load_secrets, resolve_path
+from me3.logging_style import DialogueFormatter
 
 logger = logging.getLogger("me3.app")
 
@@ -17,8 +18,17 @@ LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
+def _configure_root_logging() -> None:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(DialogueFormatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+
 def _uvicorn_log_config() -> dict:
-    """Uvicorn access/error logs with timestamps (default uvicorn format has none)."""
+    """Uvicorn access/error logs with timestamps; keep ME3 dialogue color formatter."""
     from uvicorn.config import LOGGING_CONFIG
 
     cfg = copy.deepcopy(LOGGING_CONFIG)
@@ -28,16 +38,26 @@ def _uvicorn_log_config() -> dict:
         '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
     )
     cfg["formatters"]["access"]["datefmt"] = LOG_DATEFMT
+    cfg["formatters"]["me3"] = {
+        "()": "me3.logging_style.DialogueFormatter",
+        "fmt": LOG_FORMAT,
+        "datefmt": LOG_DATEFMT,
+    }
+    cfg["handlers"]["me3"] = {
+        "class": "logging.StreamHandler",
+        "formatter": "me3",
+        "stream": "ext://sys.stderr",
+    }
+    cfg["loggers"]["me3"] = {
+        "handlers": ["me3"],
+        "level": "INFO",
+        "propagate": False,
+    }
     return cfg
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format=LOG_FORMAT,
-        datefmt=LOG_DATEFMT,
-        force=True,
-    )
+    _configure_root_logging()
     parser = argparse.ArgumentParser(description="ME3 voice-agent")
     parser.add_argument("--serve", action="store_true", help="Run session UI backend")
     parser.add_argument(

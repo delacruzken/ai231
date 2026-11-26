@@ -26,7 +26,7 @@ def test_mock_search_evidence_envelope():
     out = svc.search("Philippines Senate results")
     assert out["count"] >= 2
     for e in out["evidence"]:
-        assert e["url"] and e["retrieved_at"] and e["provider"] == "mock"
+        assert e["url"] and e["searched_at"] and "retrieved_at" not in e and e["provider"] == "mock"
     assert "nationwide" in out["guidance"].lower() or "local" in out["guidance"].lower()
 
 

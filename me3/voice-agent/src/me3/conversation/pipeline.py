@@ -260,6 +260,9 @@ class ConversationOrchestrator:
             logger.info("skip ASR ghost commit: %s", text[:40])
             self.turn_taker.reset()
             return ""
+        # Runtime clock is baked into the system prompt — refresh each turn so
+        # "what time is it?" is not stuck on session-start time.
+        self.refresh_system_prompt()
         norm = re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
         now = time.monotonic()
         with self._lock:
@@ -306,6 +309,11 @@ class ConversationOrchestrator:
         self.on_event({"type": "transcript", "role": "user", "text": text, "turn_id": turn_id})
         self.set_state("thinking")
         self.acks.on_operation_started()
+        logger.info(
+            "YOU commit%s: %s",
+            " (speculative)" if speculative else "",
+            text[:160],
+        )
         self.on_event(
             {
                 "type": "turn_started",
@@ -316,6 +324,7 @@ class ConversationOrchestrator:
         )
 
         def tool_executor(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            logger.info("TOOL call %s args=%s", name, str(arguments)[:160])
             out = dispatch_tool(
                 self.tasks,
                 name,
@@ -324,6 +333,8 @@ class ConversationOrchestrator:
                 delegation=self.delegation,
                 publication=self.publication,
             )
+            ok = out.get("ok") if isinstance(out, dict) else None
+            logger.info("TOOL result %s ok=%s", name, ok)
             self.on_event({"type": "tool_result", "name": name, "result": out, "turn_id": turn_id})
             return out
 
@@ -369,6 +380,7 @@ class ConversationOrchestrator:
                     if first_token:
                         mark("llm_first_token")
                         first_token = False
+                        logger.info("KAKI llm_first_token turn=%s…", turn_id[:8])
                     full += chunk.text
                     sentence_buf += chunk.text
                     self.on_event(
@@ -397,6 +409,7 @@ class ConversationOrchestrator:
                             self.acks.on_result_ready()
                             self.set_state("speaking")
                             first = False
+                        logger.info("KAKI speak: %s", sent[:120])
                         self.speak(sent, "assistant")
                 rem = sentence_buf.strip()
                 if rem:
@@ -407,8 +420,10 @@ class ConversationOrchestrator:
                         self.acks.on_result_ready()
                         self.set_state("speaking")
                         first = False
+                    logger.info("KAKI speak: %s", rem[:120])
                     self.speak(rem, "assistant")
                 if full.strip():
+                    logger.info("KAKI done (%s): %s", self.llm_backend, full.strip()[:160])
                     self.memory.add_turn(
                         "assistant",
                         full.strip(),

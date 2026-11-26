@@ -35,3 +35,20 @@ def test_persona_requires_world_fact_search():
     prompt = build_system_prompt()
     assert "MUST use web_search" in prompt
     assert "training memory" in prompt
+
+
+def test_persona_handles_asr_misspellings_and_dated_facts():
+    prompt = build_system_prompt()
+    assert "speech recognition" in prompt
+    assert "search the most likely corrected name" in prompt
+    assert "Do not use the words 'today'" in prompt
+
+
+def test_web_search_tool_does_not_default_to_finance_topic():
+    from me3.tasks.tools import TOOL_DEFINITIONS
+
+    web = next(t for t in TOOL_DEFINITIONS if t["name"] == "web_search")
+    topic = web["input_schema"]["properties"]["topic"]
+    assert "Leave topic unset" in web["description"]
+    assert "Omit for most questions" in topic["description"]
+    assert "finance" in topic["enum"]  # still allowed, just not the default
