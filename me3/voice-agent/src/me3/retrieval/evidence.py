@@ -25,7 +25,11 @@ class EvidenceEnvelope:
 
 
 def evidence_to_dict(e: EvidenceEnvelope) -> dict[str, Any]:
-    return asdict(e)
+    d = asdict(e)
+    # retrieved_at is when *we* searched, not when the page's facts were true. Expose it
+    # as searched_at so the model cannot mistake today's date for a figure's date.
+    d["searched_at"] = d.pop("retrieved_at")
+    return d
 
 
 def truncate(text: str, limit: int = 2400) -> str:

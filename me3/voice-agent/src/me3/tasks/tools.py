@@ -96,15 +96,31 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "Search the web via Tavily. Returns evidence envelopes with URL/title/content. "
             "Required for any external/world fact that can change over time — not only "
             "politics. Call it before answering; never use training memory for those "
-            "facts and never ask permission to search. Speak from evidence only; if "
-            "results conflict, ask one short clarifier."
+            "facts and never ask permission to search. "
+            "Query: use the full entity name as the owner most likely meant it (reconstruct "
+            "it first if the transcript looks misheard), plus the specific datapoint wanted "
+            "(e.g. 'current price', 'latest result') and 'today' or the current date. "
+            "Leave topic unset for almost every question; topic 'finance' returns news "
+            "articles, not live quote or data pages. "
+            "After results return, check they are about the entity the owner meant and that "
+            "their dates fit the question. If they are about a different entity or are stale, "
+            "search again with a more specific query before answering. Speak from evidence "
+            "only; if results conflict or stay unclear, ask one short clarifier."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
                 "max_results": {"type": "integer"},
-                "topic": {"type": "string", "description": "Optional Tavily topic e.g. news"},
+                "topic": {
+                    "type": "string",
+                    "enum": ["general", "news", "finance"],
+                    "description": (
+                        "Tavily topic. Omit for most questions (general web, including quote and "
+                        "data pages). Use 'news' only for news events. Avoid 'finance' unless "
+                        "the owner asks for financial news coverage."
+                    ),
+                },
             },
             "required": ["query"],
         },

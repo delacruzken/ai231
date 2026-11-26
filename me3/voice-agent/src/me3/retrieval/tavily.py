@@ -14,6 +14,37 @@ logger = logging.getLogger("me3.retrieval.tavily")
 
 API_BASE = "https://api.tavily.com"
 
+# Tavily /search only accepts these; models often invent "science", "tech", etc.
+_TAVILY_TOPICS = frozenset({"general", "news", "finance"})
+_TAVILY_TOPIC_ALIASES = {
+    "science": "general",
+    "scientific": "general",
+    "tech": "general",
+    "technology": "general",
+    "research": "general",
+    "politics": "news",
+    "world": "news",
+    "current": "news",
+    "business": "finance",
+    "markets": "finance",
+    "economy": "finance",
+}
+
+
+def normalize_tavily_topic(topic: str | None) -> str | None:
+    """Map free-form topic strings onto Tavily's allowed set (or drop empty)."""
+    if topic is None:
+        return None
+    raw = str(topic).strip().lower()
+    if not raw:
+        return None
+    if raw in _TAVILY_TOPICS:
+        return raw
+    mapped = _TAVILY_TOPIC_ALIASES.get(raw, "general")
+    if mapped != raw:
+        logger.info("tavily topic %r → %r", topic, mapped)
+    return mapped
+
 
 class TavilyClient:
     def __init__(self, api_key: str, *, timeout_s: float = 30.0):
@@ -62,8 +93,9 @@ class TavilyClient:
             "search_depth": search_depth,
             "include_answer": include_answer,
         }
-        if topic:
-            body["topic"] = topic
+        topic_n = normalize_tavily_topic(topic)
+        if topic_n:
+            body["topic"] = topic_n
         raw = self._post("/search", body)
         out: list[EvidenceEnvelope] = []
         for item in raw.get("results") or []:

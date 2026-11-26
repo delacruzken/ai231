@@ -47,6 +47,10 @@ class RetrievalService:
             "count": len(envelopes),
             "guidance": (
                 "Treat results as evidence with citations. Prefer official sources. "
+                "Dates: published_at is the date of the source content (null if unknown); "
+                "searched_at is when this search ran and is NOT the date of any figure. "
+                "If a figure has no published_at and no date in its content, say its date "
+                "is unconfirmed. "
                 "If nationwide vs local election questions are ambiguous, ask one clarifying question."
             ),
         }

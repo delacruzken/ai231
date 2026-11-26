@@ -678,8 +678,14 @@ class SessionController:
             "final": evt.type != "partial",
         }
         self._emit({"type": "transcript", **row})
+        text = (evt.text or "").strip()
         if evt.type == "partial":
-            mark("asr_partial", text=evt.text or "")
+            mark("asr_partial", text=text)
+            if text:
+                tag = "barge" if self._barge_asr_live else "listen"
+                logger.info("YOU asr_partial [%s]: %s", tag, text[:120])
+        elif text:
+            logger.info("YOU asr_final: %s", text[:120])
         # Do not mark asr_final here. Silence-commit and Zipformer-final both
         # land in ConversationOrchestrator.commit_user_turn, which marks once.
         # A second mark here made fdbench concatenate identical text → doubled WER.
@@ -853,7 +859,32 @@ class SessionController:
                 muted = self.mic_muted
                 state = self.state
             if self.conversation and enabled:
-                self.conversation.tick(enabled=True, state=state.value)
+                # Soft-pause keeps state=SPEAKING, so turn-taker never commits the
+                # interrupt. Drive tick as listening while barge ASR is live; if the
+                # interrupt is ready to commit, hard-confirm first so LLM is cancelled.
+                # Peek silence without arming commit (evaluate() would block tick).
+                tick_state = state.value
+                if self._barge_asr_live or self._barge_soft_paused:
+                    tick_state = SessionState.LISTENING.value
+                    tt = self.conversation.turn_taker
+                    partial = (tt.partial_text or "").strip()
+                    if (
+                        partial
+                        and tt.last_speech_mono is not None
+                        and (self._barge_soft_paused or state in (SessionState.SPEAKING, SessionState.THINKING))
+                    ):
+                        silence_ms = (time.monotonic() - tt.last_speech_mono) * 1000.0
+                        if silence_ms >= tt.threshold_ms():
+                            logger.info(
+                                "barge interrupt ready (%.0fms silence): %s",
+                                silence_ms,
+                                partial[:100],
+                            )
+                            self._hard_barge_in(max(self._barge_speech_ms, 1.0))
+                            tt.cancel_pending()
+                            state = SessionState.LISTENING
+                            tick_state = state.value
+                self.conversation.tick(enabled=True, state=tick_state)
             if chunk is None:
                 continue
             if not enabled:
@@ -1040,8 +1071,12 @@ class SessionController:
                 except Exception:
                     vad_hit = False
 
-            # Require energy AND VAD — energy-alone was cutting replies on room noise.
-            speech_hit = energy_hit and (vad_hit if self.vad is not None else True)
+            # Start barge with energy+VAD; after soft-pause, energy alone can finish
+            # confirm (user often pauses mid-interrupt once TTS ducks).
+            if self._barge_soft_paused:
+                speech_hit = energy_hit
+            else:
+                speech_hit = energy_hit and (vad_hit if self.vad is not None else True)
 
             if speech_hit:
                 speech_this_chunk = True
@@ -1052,10 +1087,6 @@ class SessionController:
                 self._barge_speech_ms = max(float(pause_ms), self._barge_speech_ms - frame_ms * 0.25)
                 self._barge_quiet_ms += frame_ms
                 if self._barge_quiet_ms >= abandon_ms:
-                    logger.info(
-                        "barge soft-pause abandoned after %.0fms quiet",
-                        self._barge_quiet_ms,
-                    )
                     self._abandon_soft_barge()
             else:
                 self._barge_speech_ms = max(0.0, self._barge_speech_ms - frame_ms * 0.85)
@@ -1133,8 +1164,24 @@ class SessionController:
         logger.info("barge ASR capture started (%d chunks)", len(buffered))
 
     def _abandon_soft_barge(self) -> None:
-        """Noise after soft-pause — drop interrupt capture and resume speaking path."""
+        """Quiet after soft-pause: keep interrupt text if ASR heard any; else resume."""
+        from me3.conversation.asr_filters import is_asr_ghost
+
+        partial = ""
+        if self.conversation:
+            partial = (self.conversation.turn_taker.partial_text or "").strip()
+        if partial and not is_asr_ghost(partial):
+            logger.info(
+                "barge soft-pause quiet → confirm with captured interrupt: %s",
+                partial[:100],
+            )
+            self._hard_barge_in(max(self._barge_speech_ms, 1.0))
+            return
         was_live = self._barge_asr_live
+        logger.info(
+            "barge soft-pause abandoned after %.0fms quiet (no interrupt text)",
+            self._barge_quiet_ms,
+        )
         self._barge_soft_paused = False
         self._barge_quiet_ms = 0.0
         self._barge_asr_buf.clear()
@@ -1167,8 +1214,15 @@ class SessionController:
         """Confirmed barge: cancel LLM, keep ASR interrupt as the next user turn."""
         from me3.benchmark.marks import mark
 
+        partial = ""
+        if self.conversation:
+            partial = (self.conversation.turn_taker.partial_text or "").strip()
         mark("interrupted")
-        logger.info("barge-in confirmed after %.0fms — keeping interrupt as next turn", held_ms)
+        logger.info(
+            "barge-in confirmed after %.0fms — interrupt so far: %s",
+            held_ms,
+            (partial[:100] if partial else "(no ASR text yet)"),
+        )
         # Ensure ASR already has the interrupt (soft-pause normally seeded it).
         self._seed_barge_asr()
         self._barge_keep_asr = True
